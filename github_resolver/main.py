@@ -105,6 +105,7 @@ def process_issue(
     github_owner: str,
     github_repo: str,
     issue: GithubIssue,
+    container_image: str | None,
     agent_class: str,
     metadata: dict,
     output_dir: str,
@@ -116,6 +117,7 @@ def process_issue(
         github_owner: Owner of the github repo.
         github_repo: Github repository to resolve issues.
         issue: Github issue to resolve.
+        container_image: Container image to use for evaluation.
         agent_class: The agent class to use.
         metadata: Metadata for the run.
         output_dir: Output directory to write the results.
@@ -158,7 +160,9 @@ def process_issue(
 
     # The workspace is set through global variables
     config.workspace_mount_path_in_sandbox = workspace_mount_path
-    sandbox = DockerSSHBox()
+    sandbox = DockerSSHBox(
+        container_image=container_image,
+    )
 
     # Branch names
     fix_branch = f"fix-issue-{issue.number}"
@@ -277,6 +281,7 @@ def resolve_issues(
     github_owner: str,
     github_repo: str,
     github_token: str,
+    container_image: str | None,
     agent_class: str,
     max_iterations: int,
     limit_issues: int | None,
@@ -289,6 +294,7 @@ def resolve_issues(
         github_owner: Github owner of the repo.
         github_repo: Github repository to resolve issues in form of `owner/repo`.
         github_token: Github token to access the repository.
+        container_image: Container image to use for evaluation.
         agent_class: The agent class to use.
         max_iterations: Maximum number of iterations to run
         limit_issues: Limit the number of issues to resolve.
@@ -393,6 +399,7 @@ def resolve_issues(
                     github_owner,
                     github_repo,
                     issue,
+                    container_image,
                     agent_class,
                     metadata,
                     output_dir,
@@ -426,6 +433,12 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Github token to access the repository.",
+    )
+    parser.add_argument(
+        "--container-image",
+        type=str,
+        default=None,
+        help="Container image to use for evaluation.",
     )
     parser.add_argument(
         "--agent-class",
@@ -470,6 +483,7 @@ if __name__ == "__main__":
         github_owner=github_owner,
         github_repo=github_repo,
         github_token=github_token,
+        container_image=my_args.container_image,
         agent_class=my_args.agent_class,
         max_iterations=my_args.max_iterations,
         limit_issues=my_args.limit_issues,
