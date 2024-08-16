@@ -209,7 +209,7 @@ async def process_issue(
     reset_logger: bool = True,
 ) -> None:
 
-    # Setup the logger properly, so you can run multi-processing to parallelize the evaluation
+    # Setup the logger properly, so you can run multi-processing to parallelize processing
     if reset_logger:
         log_dir = os.path.join(output_dir, 'infer_logs')
         reset_logger_for_multiprocessing(logger, issue.number, log_dir)
@@ -360,7 +360,7 @@ async def resolve_issues(
     pathlib.Path(os.path.join(output_dir, "infer_logs")).mkdir(
         parents=True, exist_ok=True
     )
-    logger.info(f"Using evaluation output directory: {output_dir}")
+    logger.info(f"Using output directory: {output_dir}")
 
     # checkout the repo
     checkout_output = subprocess.check_output(
@@ -386,7 +386,7 @@ async def resolve_issues(
 
     # OUTPUT FILE
     output_file = os.path.join(output_dir, "output.jsonl")
-    logger.info(f"Writing evaluation output to {output_file}")
+    logger.info(f"Writing output to {output_file}")
     finished_numbers = set()
     if os.path.exists(output_file):
         with open(output_file, "r") as f:
@@ -425,9 +425,9 @@ async def resolve_issues(
             f'Test Result: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
         )
         logger.info(
-            f'Finished evaluation for issue {output.issue.number}: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
+            f'Finished issue {output.issue.number}: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
         )
-        output_fp.write(json.dumps(output.to_dict()) + "\n")
+        output_fp.write(output.model_dump_json() + "\n")
         output_fp.flush()
 
     # This sets the multi-processing
@@ -465,7 +465,7 @@ async def resolve_issues(
         cleanup()
 
     output_fp.close()
-    logger.info("Evaluation finished.")
+    logger.info("Finished.")
 
 
 if __name__ == "__main__":
