@@ -1,6 +1,7 @@
 # flake8: noqa: E501
 
 import asyncio
+import shutil
 from typing import Any
 import requests
 import argparse
@@ -9,13 +10,10 @@ import multiprocessing as mp
 import os
 import pathlib
 import subprocess
-import time
-from concurrent.futures import ProcessPoolExecutor
 
 from tqdm import tqdm
 
 
-import agenthub
 from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
 from opendevin.core.main import create_runtime, run_controller
@@ -23,7 +21,11 @@ from opendevin.controller.state.state import State
 from opendevin.core.logger import opendevin_logger as logger
 from opendevin.events.action import MessageAction
 from opendevin.events.action import CmdRunAction
-from opendevin.events.observation import Observation, CmdOutputObservation, ErrorObservation
+from opendevin.events.observation import (
+    Observation,
+    CmdOutputObservation,
+    ErrorObservation,
+)
 from opendevin.core.config import (
     AppConfig,
     SandboxConfig,
@@ -89,12 +91,30 @@ async def initialize_runtime(
     This function is called before the runtime is used to run the agent.
     Currently it does nothing.
     """
-    pass
+    logger.info('-' * 30)
+    logger.info('BEGIN Runtime Completion Fn')
+    logger.info('-' * 30)
+    obs: CmdOutputObservation
+
+    action = CmdRunAction(command=f'cd /workspace')
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = await runtime.run_action(action)
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    if obs.exit_code != 0:
+        raise RuntimeError(
+            f"Failed to change directory to /workspace. Exit code: {obs.exit_code}"
+        )
+
+    action = CmdRunAction(command='git config --global core.pager ""')
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = await runtime.run_action(action)
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    if obs.exit_code != 0:
+        raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
 
 async def complete_runtime(
     runtime: Runtime,
-    issue: GithubIssue,  # this argument is not required, but it is used to get the workspace_dir_name
     base_commit: str,
 ) -> dict[str, Any]:
     """Complete the runtime for the agent.
@@ -108,23 +128,28 @@ async def complete_runtime(
     logger.info('-' * 30)
     obs: Observation
 
-    action = CmdRunAction(command=f'cd /workspace/issue_{issue.number}')
+    action = CmdRunAction(command=f'cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    assert obs.exit_code == 0
+    if obs.exit_code != 0:
+        raise RuntimeError(
+            f"Failed to change directory to /workspace. Exit code: {obs.exit_code}"
+        )
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    assert obs.exit_code == 0
+    if obs.exit_code != 0:
+        raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
     action = CmdRunAction(command='git add -A')
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    assert obs.exit_code == 0
+    if obs.exit_code != 0:
+        raise RuntimeError(f"Failed to git add. Exit code: {obs.exit_code}")
 
     n_retries = 0
     git_patch = None
@@ -159,9 +184,9 @@ async def complete_runtime(
 
 def get_instruction(
     issue: GithubIssue,
-):# Prepare instruction
+):  # Prepare instruction
     instruction = (
-        f'Please fix the following issue for the repository in /workspace/issue_{issue.number}.\n'
+        f'Please fix the following issue for the repository in /workspace.\n'
         'Environment has been set up for you to start working. You may assume all necessary tools are installed.\n\n'
         '# Problem Statement\n'
         f'{issue.body}\n\n'
@@ -180,9 +205,20 @@ async def process_issue(
     max_iterations: int,
     llm_config: LLMConfig,
     output_dir: str,
-    container_image: str | None = None,
+    container_image: str,
     reset_logger: bool = True,
 ) -> None:
+
+    # Setup the logger properly, so you can run multi-processing to parallelize the evaluation
+    if reset_logger:
+        log_dir = os.path.join(output_dir, 'infer_logs')
+        reset_logger_for_multiprocessing(logger, issue.number, log_dir)
+    else:
+        logger.info(f'Starting fixing issue {issue.number}.')
+
+    workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
+    # copy the repo to the workspace
+    shutil.copytree(os.path.join(output_dir, "repo"), workspace_base)
 
     config = AppConfig(
         default_agent="CodeActAgent",
@@ -198,19 +234,12 @@ async def process_issue(
             timeout=300,
         ),
         # do not mount workspace
-        workspace_base=None,
-        workspace_mount_path=None,
+        workspace_base=workspace_base,
+        workspace_mount_path=workspace_base,
     )
     config.set_llm_config(llm_config)
 
-    # Setup the logger properly, so you can run multi-processing to parallelize the evaluation
-    if reset_logger:
-        log_dir = os.path.join(output_dir, 'infer_logs')
-        reset_logger_for_multiprocessing(logger, issue.number, log_dir)
-    else:
-        logger.info(f'Starting fixing issue {issue.number}.')
-
-    runtime = await create_runtime(config, sid=issue.number)
+    runtime = await create_runtime(config, sid=f"{issue.number}")
     await initialize_runtime(runtime)
 
     instruction = get_instruction(issue)
@@ -224,7 +253,7 @@ async def process_issue(
     )
 
     # Get git patch
-    return_val = await complete_runtime(runtime, issue, base_commit)
+    return_val = await complete_runtime(runtime, base_commit)
     git_patch = return_val['git_patch']
     logger.info(
         f'Got git diff for instance {issue.number}:\n--------\n{git_patch}\n--------'
@@ -277,18 +306,23 @@ def download_issues_from_github(
     converted_issues = []
     for issue in issues:
         if any([issue.get(key) is None for key in ["number", "title", "body"]]):
-            logger.warning(f"Skipping issue {issue} as it is missing number, title, or body.")
+            logger.warning(
+                f"Skipping issue {issue} as it is missing number, title, or body."
+            )
             continue
         converted_issues.append(
-            GithubIssue(number=issue["number"], title=issue["title"], body=issue["body"])
+            GithubIssue(
+                number=issue["number"], title=issue["title"], body=issue["body"]
+            )
         )
     return converted_issues
 
 
-def resolve_issues(
+async def resolve_issues(
     github_owner: str,
     github_repo: str,
     github_token: str,
+    github_username: str,
     max_iterations: int,
     limit_issues: int | None,
     num_workers: int,
@@ -302,10 +336,11 @@ def resolve_issues(
         github_owner: Github owner of the repo.
         github_repo: Github repository to resolve issues in form of `owner/repo`.
         github_token: Github token to access the repository.
+        github_username: Github username to access the repository.
         max_iterations: Maximum number of iterations to run
         limit_issues: Limit the number of issues to resolve.
         output_dir: Output directory to write the results.
-        container_image: Container image to use for evaluation.
+        container_image: Container image to use.
     """
 
     # Load dataset
@@ -325,29 +360,27 @@ def resolve_issues(
     )
     logger.info(f"Using evaluation output directory: {output_dir}")
 
+    # checkout the repo
+    checkout_output = subprocess.check_output(
+        [
+            "git",
+            "clone",
+            f"https://{github_username}:{github_token}@github.com/{github_owner}/{github_repo}",
+            f"{output_dir}/repo",
+        ]
+    ).decode("utf-8")
+    if "fatal" in checkout_output:
+        raise iuntimeError(f"Failed to clone repository: {checkout_output}")
+
     # get the commit id of current repo for reproducibility
     base_commit = (
-        subprocess.check_output(["git", "rev-parse", "HEAD"])
+        subprocess.check_output(
+            ["cd", f"{output_dir}/repo", "&&", "git", "rev-parse", "HEAD"]
+        )
         .decode("utf-8")
         .strip()
     )
-
-    metadata = {
-        "agent_class": AGENT_CLASS,
-        "model_name": model_name,
-        "max_iterations": max_iterations,
-        "output_dir": output_dir,
-        "start_time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "base_commit": base_commit,
-    }
-    _AGENT_CLASS = agenthub.Agent.get_cls(AGENT_CLASS)
-    if hasattr(_AGENT_CLASS, "system_message"):
-        metadata["system_message"] = _AGENT_CLASS.system_message
-    if hasattr(_AGENT_CLASS, "in_context_example"):
-        metadata["in_context_example"] = _AGENT_CLASS.in_context_example
-    logger.info(f"Metadata: {metadata}")
-    with open(os.path.join(output_dir, "metadata.json"), "w") as f:
-        json.dump(metadata, f)
+    logger.info(f"Base commit: {base_commit}")
 
     # OUTPUT FILE
     output_file = os.path.join(output_dir, "output.jsonl")
@@ -364,7 +397,7 @@ def resolve_issues(
     output_fp = open(output_file, "a")
 
     logger.info(
-        f"Evaluation started with Agent {AGENT_CLASS}, model {model_name}, max iterations {max_iterations}."
+        f"Resolving issues with Agent {AGENT_CLASS}, model {model_name}, max iterations {max_iterations}."
     )
 
     # =============================================
@@ -383,41 +416,48 @@ def resolve_issues(
     pbar = tqdm(total=len(issues))
 
     # This function tracks the progress AND write the output to a JSONL file
-    def update_progress(future):
+    def update_progress(output):
         pbar.update(1)
-        output = future.result()
-        pbar.set_description(f'issue {output["number"][:10]}')
-        pbar.set_postfix_str(f'Test Result: {output["test_result"]["result"]}')
-        logger.info(
-            f'Finished evaluation for issue {output["number"]}: {output["test_result"]["result"]}'
+        pbar.set_description(f'issue {output.issue.number}')
+        pbar.set_postfix_str(
+            f'Test Result: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
         )
-        output_fp.write(json.dumps(output) + "\n")
+        logger.info(
+            f'Finished evaluation for issue {output.issue.number}: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
+        )
+        output_fp.write(json.dumps(output.to_dict()) + "\n")
         output_fp.flush()
 
     # This sets the multi-processing
-    logger.info(f"Using {num_workers} workers for evaluation.")
+    logger.info(f"Using {num_workers} workers.")
 
     try:
-        with ProcessPoolExecutor(num_workers) as executor:
-            futures = []
-            # This is how we perform multi-processing
-            for issue in issues:
-                future = executor.submit(
-                    process_issue,
-                    issue=issue,
-                    base_commit=base_commit,
-                    max_iterations=max_iterations,
-                    llm_config=llm_config,
-                    output_dir=output_dir,
-                    container_image=container_image,
-                    reset_logger=bool(num_workers > 1),
-                )
-                future.add_done_callback(update_progress)
-                futures.append(future)
+        # Replace the ProcessPoolExecutor with asyncio.gather
+        tasks = []
+        for issue in issues:
+            task = process_issue(
+                issue,
+                base_commit,
+                max_iterations,
+                llm_config,
+                output_dir,
+                container_image,
+                bool(num_workers > 1),
+            )
+            tasks.append(task)
 
-            # Wait for all futures to complete
-            for future in futures:
-                future.result()
+        # Use asyncio.gather with a semaphore to limit concurrency
+        sem = asyncio.Semaphore(num_workers)
+
+        async def run_with_semaphore(task):
+            async with sem:
+                return await task
+
+        results = await asyncio.gather(*[run_with_semaphore(task) for task in tasks])
+
+        for result in results:
+            update_progress(result)
+
     except KeyboardInterrupt:
         print("KeyboardInterrupt received. Cleaning up...")
         cleanup()
@@ -442,10 +482,16 @@ if __name__ == "__main__":
         help="Github token to access the repository.",
     )
     parser.add_argument(
-        "--container-image",
+        "--github-username",
         type=str,
         default=None,
-        help="Container image to use for evaluation.",
+        help="Github username to access the repository.",
+    )
+    parser.add_argument(
+        "--container-image",
+        type=str,
+        default="nikolaik/python-nodejs:python3.11-nodejs22",
+        help="Container image to use.",
     )
     parser.add_argument(
         "--agent-class",
@@ -469,7 +515,13 @@ if __name__ == "__main__":
         "--num-workers",
         type=int,
         default=1,
-        help="Number of workers to use for evaluation.",
+        help="Number of workers to use.",
+    )
+    parser.add_argument(
+        "--workspace-dir",
+        type=str,
+        default="workspace",
+        help="Workspace directory to use.",
     )
     parser.add_argument(
         "--output-dir",
@@ -481,13 +533,13 @@ if __name__ == "__main__":
         "--llm-model",
         type=str,
         default=None,
-        help="LLM model to use for evaluation.",
+        help="LLM model to use.",
     )
     parser.add_argument(
         "--llm-api-key",
         type=str,
         default=None,
-        help="LLM API key to use for evaluation.",
+        help="LLM API key to use.",
     )
     my_args = parser.parse_args()
 
@@ -495,22 +547,32 @@ if __name__ == "__main__":
     github_token = (
         my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
     )
+    github_username = (
+        my_args.github_username if my_args.github_username else os.getenv("GITHUB_USERNAME")
+    )
+
     if not github_token:
         raise ValueError("Github token is required.")
+
+    if os.path.exists(my_args.output_dir):
+        raise ValueError(f"Output directory {my_args.output_dir} already exists, remove it or specify a different one.")
 
     llm_config = LLMConfig(
         model=my_args.llm_model or os.environ["LLM_MODEL"],
         api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
     )
 
-    resolve_issues(
-        github_owner=github_owner,
-        github_repo=github_repo,
-        github_token=github_token,
-        container_image=my_args.container_image,
-        max_iterations=my_args.max_iterations,
-        limit_issues=my_args.limit_issues,
-        num_workers=my_args.num_workers,
-        output_dir=my_args.output_dir,
-        llm_config=llm_config,
+    asyncio.run(
+        resolve_issues(
+            github_owner=github_owner,
+            github_repo=github_repo,
+            github_token=github_token,
+            github_username=github_username,
+            container_image=my_args.container_image,
+            max_iterations=my_args.max_iterations,
+            limit_issues=my_args.limit_issues,
+            num_workers=my_args.num_workers,
+            output_dir=my_args.output_dir,
+            llm_config=llm_config,
+        )
     )
