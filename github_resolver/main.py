@@ -23,7 +23,7 @@ from opendevin.controller.state.state import State
 from opendevin.core.logger import opendevin_logger as logger
 from opendevin.events.action import MessageAction
 from opendevin.events.action import CmdRunAction
-from opendevin.events.observation import CmdOutputObservation, ErrorObservation
+from opendevin.events.observation import Observation, CmdOutputObservation, ErrorObservation
 from opendevin.core.config import (
     AppConfig,
     SandboxConfig,
@@ -106,7 +106,7 @@ async def complete_runtime(
     logger.info('-' * 30)
     logger.info('BEGIN Runtime Completion Fn')
     logger.info('-' * 30)
-    obs: CmdOutputObservation
+    obs: Observation
 
     action = CmdRunAction(command=f'cd /workspace/issue_{issue.number}')
     logger.info(action, extra={'msg_type': 'ACTION'})
