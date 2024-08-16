@@ -217,6 +217,8 @@ async def process_issue(
         logger.info(f'Starting fixing issue {issue.number}.')
 
     workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
+    # Get the absolute path of the workspace base
+    workspace_base = os.path.abspath(workspace_base)
     # copy the repo to the workspace
     shutil.copytree(os.path.join(output_dir, "repo"), workspace_base)
 
