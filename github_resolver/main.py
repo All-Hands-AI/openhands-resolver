@@ -1,10 +1,10 @@
 # flake8: noqa: E501
 
 import asyncio
+from typing import Any
 import requests
 import argparse
 import json
-import logging
 import multiprocessing as mp
 import os
 import pathlib
@@ -12,20 +12,32 @@ import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor
 
-import pandas as pd
-import toml
 from tqdm import tqdm
+
 
 import agenthub
 from github_resolver.github_issue import GithubIssue
+from github_resolver.resolver_output import ResolverOutput
+from opendevin.core.main import create_runtime, run_controller
 from opendevin.controller.state.state import State
-from opendevin.core.config import config
-from opendevin.core.logger import get_console_handler
 from opendevin.core.logger import opendevin_logger as logger
-from opendevin.core.main import main
 from opendevin.events.action import MessageAction
-from opendevin.events.serialization.event import event_to_dict
-from opendevin.runtime.docker.ssh_box import DockerSSHBox
+from opendevin.events.action import CmdRunAction
+from opendevin.events.observation import CmdOutputObservation, ErrorObservation
+from opendevin.core.config import (
+    AppConfig,
+    SandboxConfig,
+)
+from opendevin.core.config import LLMConfig
+from opendevin.runtime.runtime import Runtime
+from github_resolver.utils import (
+    codeact_user_response,
+    reset_logger_for_multiprocessing,
+)
+
+
+# Don't make this confgurable for now, unless we have other competitive agents
+AGENT_CLASS = "CodeActAgent"
 
 
 def cleanup():
@@ -34,38 +46,6 @@ def cleanup():
         print(f"Terminating child process: {process.name}")
         process.terminate()
         process.join()
-
-
-def codeact_user_response(state: State | None) -> str:
-    msg = (
-        "Please continue working on the task on whatever approach you think is suitable.\n"
-        "If you think you have modified the code in a way that fixes the issue, please run the following command: <execute_bash> exit </execute_bash>.\n"
-        "IMPORTANT: YOU SHOULD NEVER ASK FOR HUMAN HELP OR USE THE INTERNET TO SOLVE THIS TASK.\n"
-    )
-    if state and state.history:
-        user_msgs = [
-            action
-            for action, _ in state.history
-            if isinstance(action, MessageAction) and action.source == "user"
-        ]
-        if len(user_msgs) >= 2:
-            # let the agent know that it can give up when it has tried 3 times
-            return (
-                msg
-                + "If you want to give up, run: <execute_bash> exit </execute_bash>.\n"
-            )
-    return msg
-
-
-AGENT_CLS_TO_FAKE_USER_RESPONSE_FN = {
-    "CodeActAgent": codeact_user_response,
-    "CodeActSWEAgent": codeact_user_response,
-}
-
-AGENT_CLS_TO_INST_SUFFIX = {
-    "CodeActAgent": "When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>.\n",
-    "CodeActSWEAgent": "When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>.\n",
-}
 
 
 def create_git_patch(
@@ -101,143 +81,171 @@ def create_git_patch(
     return git_id, patch_content
 
 
-def process_issue(
-    github_owner: str,
-    github_repo: str,
-    issue: GithubIssue,
-    container_image: str | None,
-    agent_class: str,
-    metadata: dict,
-    output_dir: str,
-    reset_logger: bool = True,
-) -> dict:
-    """Process an issue.
-    
-    Args:
-        github_owner: Owner of the github repo.
-        github_repo: Github repository to resolve issues.
-        issue: Github issue to resolve.
-        container_image: Container image to use for evaluation.
-        agent_class: The agent class to use.
-        metadata: Metadata for the run.
-        output_dir: Output directory to write the results.
-        reset_logger: Whether to reset the logger.
-    
-    Returns:
-        Output of the run.    
-    """
+async def initialize_runtime(
+    runtime: Runtime,
+):
+    """Initialize the runtime for the agent.
 
-    # create issue-specific workspace dir
-    # so that different agent don't interfere with each other.
-    workspace_mount_path = os.path.join(
-        config.workspace_mount_path, f"issue_{issue.number}"
+    This function is called before the runtime is used to run the agent.
+    Currently it does nothing.
+    """
+    pass
+
+
+async def complete_runtime(
+    runtime: Runtime,
+    issue: GithubIssue,  # this argument is not required, but it is used to get the workspace_dir_name
+    base_commit: str,
+) -> dict[str, Any]:
+    """Complete the runtime for the agent.
+
+    This function is called before the runtime is used to run the agent.
+    If you need to do something in the sandbox to get the correctness metric after
+    the agent has run, modify this function.
+    """
+    logger.info('-' * 30)
+    logger.info('BEGIN Runtime Completion Fn')
+    logger.info('-' * 30)
+    obs: CmdOutputObservation
+
+    action = CmdRunAction(command=f'cd /workspace/issue_{issue.number}')
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = await runtime.run_action(action)
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    assert obs.exit_code == 0
+
+    action = CmdRunAction(command='git config --global core.pager ""')
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = await runtime.run_action(action)
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    assert obs.exit_code == 0
+
+    action = CmdRunAction(command='git add -A')
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = await runtime.run_action(action)
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    assert obs.exit_code == 0
+
+    n_retries = 0
+    git_patch = None
+    while n_retries < 5:
+        action = CmdRunAction(
+            command=f'git diff --no-color --cached {base_commit}',
+            keep_prompt=False,
+        )
+        action.timeout = 600 + 100 * n_retries
+        logger.info(action, extra={'msg_type': 'ACTION'})
+        obs = await runtime.run_action(action)
+        logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+        n_retries += 1
+        if isinstance(obs, CmdOutputObservation):
+            if obs.exit_code == 0:
+                git_patch = obs.content.strip()
+                break
+            else:
+                logger.info('Failed to get git diff, retrying...')
+                await asyncio.sleep(10)
+        elif isinstance(obs, ErrorObservation):
+            logger.error(f'Error occurred: {obs.content}. Retrying...')
+            await asyncio.sleep(10)
+        else:
+            raise ValueError(f'Unexpected observation type: {type(obs)}')
+
+    logger.info('-' * 30)
+    logger.info('END Runtime Completion Fn')
+    logger.info('-' * 30)
+    return {'git_patch': git_patch}
+
+
+def get_instruction(
+    issue: GithubIssue,
+):# Prepare instruction
+    instruction = (
+        f'Please fix the following issue for the repository in /workspace/issue_{issue.number}.\n'
+        'Environment has been set up for you to start working. You may assume all necessary tools are installed.\n\n'
+        '# Problem Statement\n'
+        f'{issue.body}\n\n'
+        'IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.\n'
+        'You should NOT modify any existing test case files. If needed, you can add new test cases in a NEW file to reproduce the issue.\n'
+        'You SHOULD INCLUDE PROPER INDENTATION in your edit commands.\n'
+        'When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>.'
     )
-    pathlib.Path(workspace_mount_path).mkdir(parents=True, exist_ok=True)
-    logger.info(f"Process-specific workspace mounted at {workspace_mount_path}")
+
+    return instruction
+
+
+async def process_issue(
+    issue: GithubIssue,
+    base_commit: str,
+    max_iterations: int,
+    llm_config: LLMConfig,
+    output_dir: str,
+    container_image: str | None = None,
+    reset_logger: bool = True,
+) -> None:
+
+    config = AppConfig(
+        default_agent="CodeActAgent",
+        run_as_devin=False,
+        runtime='eventstream',
+        max_budget_per_task=4,
+        max_iterations=max_iterations,
+        sandbox=SandboxConfig(
+            container_image=container_image,
+            enable_auto_lint=True,
+            use_host_network=False,
+            # large enough timeout, since some testcases take very long to run
+            timeout=300,
+        ),
+        # do not mount workspace
+        workspace_base=None,
+        workspace_mount_path=None,
+    )
+    config.set_llm_config(llm_config)
 
     # Setup the logger properly, so you can run multi-processing to parallelize the evaluation
     if reset_logger:
-        # Set up logger
-        log_file = os.path.join(output_dir, "infer_logs", f"issue_{issue.number}.log")
-        # Remove all existing handlers from logger
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
-        # add back the console handler to print ONE line
-        logger.addHandler(get_console_handler())
-        logger.info(
-            f'Starting evaluation for issue {issue.number}.\nHint: run "tail -f {log_file}" to see live logs in a separate shell'
-        )
-        # Remove all existing handlers from logger
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
-        logger.addHandler(file_handler)
+        log_dir = os.path.join(output_dir, 'infer_logs')
+        reset_logger_for_multiprocessing(logger, issue.number, log_dir)
     else:
-        logger.info(f"Starting evaluation for issue {issue.number}.")
+        logger.info(f'Starting fixing issue {issue.number}.')
 
-    # The workspace is set through global variables
-    config.workspace_mount_path_in_sandbox = workspace_mount_path
-    sandbox = DockerSSHBox(
-        container_image=container_image,
-    )
+    runtime = await create_runtime(config, sid=issue.number)
+    await initialize_runtime(runtime)
 
-    # Branch names
-    fix_branch = f"fix-issue-{issue.number}"
-    main_branch = "main"
-
-    # Prepare instruction
-    instruction = (
-        f"Please clone the github repo https://github.com/{github_owner}/{github_repo}.git,"
-        f" check out a new branch `{fix_branch}` from the `{main_branch}` branch, resolve the issue below,"
-        f" and commit the changes.\n\n"
-        "# Problem Statement\n"
-        f"{issue.body}\n\n"
-        "IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.\n"
-        "You should NOT modify any existing test case files. If needed, you can add new test cases in a NEW file to reproduce the issue.\n"
-        "You SHOULD INCLUDE PROPER INDENTATION in your edit commands.\n"
-    )
-
-    # NOTE: You can actually set slightly different instruction for different agents
-    instruction += AGENT_CLS_TO_INST_SUFFIX.get(agent_class, "")
+    instruction = get_instruction(issue)
 
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
-    state: State | None = asyncio.run(
-        main(
-            instruction,
-            fake_user_response_fn=AGENT_CLS_TO_FAKE_USER_RESPONSE_FN[agent_class],
-            sandbox=sandbox,
-            sid=f"{issue.number}",
-        )
+    state: State | None = await run_controller(
+        config=config,
+        task_str=instruction,
+        runtime=runtime,
+        fake_user_response_fn=codeact_user_response,
     )
 
-    # Call the function in the process_issue function
-    base_commit, patch_content = create_git_patch(
-        workspace_mount_path, main_branch, fix_branch, issue.number
+    # Get git patch
+    return_val = await complete_runtime(runtime, issue, base_commit)
+    git_patch = return_val['git_patch']
+    logger.info(
+        f'Got git diff for instance {issue.number}:\n--------\n{git_patch}\n--------'
     )
 
-    if state is None:
-        raise ValueError("State should not be None.")
-
+    # history is now available as a stream of events, rather than list of pairs of (Action, Observation)
+    # for compatibility with the existing output format, we can remake the pairs here
+    # remove when it becomes unnecessary
+    histories = state.history.compatibility_for_eval_history_pairs()
     metrics = state.metrics.get() if state.metrics else None
 
     # Save the output
-    output = {
-        "number": issue.number,
-        "instruction": instruction,
-        "metadata": metadata,
-        "history": [
-            (event_to_dict(action), event_to_dict(obs)) for action, obs in state.history
-        ],
-        "git_issue": issue.model_dump(),  # SWE Bench specific
-        "git_base_commit": base_commit,
-        "git_patch": patch_content,
-        "metrics": metrics,
-        "error": state.last_error if state and state.last_error else None,
-    }
-
-    # Close the sandbox and delete the workspace
-    sandbox.close()
-
+    output = ResolverOutput(
+        issue=issue,
+        instruction=instruction,
+        git_patch=git_patch,
+        history=histories,
+        metrics=metrics,
+        error=state.last_error if state and state.last_error else None,
+    )
     return output
-
-
-def filter_dataset(dataset: pd.DataFrame, filter_column: str) -> pd.DataFrame:
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.toml")
-    if os.path.exists(file_path):
-        with open(file_path, "r") as file:
-            data = toml.load(file)
-            if "selected_ids" in data:
-                selected_ids = data["selected_ids"]
-                logger.info(
-                    f'Filtering {len(selected_ids)} tasks from "selected_ids"...'
-                )
-                subset = dataset[dataset[filter_column].isin(selected_ids)]
-                logger.info(f"Retained {subset.shape[0]} tasks after filtering")
-                return subset
-    return dataset
 
 
 def download_issues_from_github(
@@ -281,12 +289,11 @@ def resolve_issues(
     github_owner: str,
     github_repo: str,
     github_token: str,
-    container_image: str | None,
-    agent_class: str,
     max_iterations: int,
     limit_issues: int | None,
     num_workers: int,
     output_dir: str,
+    container_image: str | None = None,
 ) -> None:
     """Resolve github issues.
 
@@ -294,11 +301,10 @@ def resolve_issues(
         github_owner: Github owner of the repo.
         github_repo: Github repository to resolve issues in form of `owner/repo`.
         github_token: Github token to access the repository.
-        container_image: Container image to use for evaluation.
-        agent_class: The agent class to use.
         max_iterations: Maximum number of iterations to run
         limit_issues: Limit the number of issues to resolve.
         output_dir: Output directory to write the results.
+        container_image: Container image to use for evaluation.
     """
 
     # Load dataset
@@ -310,10 +316,7 @@ def resolve_issues(
         logger.info(f"Limiting resolving to first {limit_issues} issues.")
 
     # TEST METADATA
-    assert (
-        agent_class in AGENT_CLS_TO_FAKE_USER_RESPONSE_FN
-    ), f"Unsupported agent class: {agent_class}"
-    model_name = config.llm.model.split("/")[-1]
+    model_name = llm_config.model.split("/")[-1]
 
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     pathlib.Path(os.path.join(output_dir, "infer_logs")).mkdir(
@@ -321,22 +324,26 @@ def resolve_issues(
     )
     logger.info(f"Using evaluation output directory: {output_dir}")
 
+    # get the commit id of current repo for reproducibility
+    base_commit = (
+        subprocess.check_output(["git", "rev-parse", "HEAD"])
+        .decode("utf-8")
+        .strip()
+    )
+
     metadata = {
-        "agent_class": agent_class,
+        "agent_class": AGENT_CLASS,
         "model_name": model_name,
         "max_iterations": max_iterations,
         "output_dir": output_dir,
         "start_time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        # get the commit id of current repo for reproducibility
-        "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"])
-        .decode("utf-8")
-        .strip(),
+        "base_commit": base_commit,
     }
-    _agent_class = agenthub.Agent.get_cls(agent_class)
-    if hasattr(_agent_class, "system_message"):
-        metadata["system_message"] = _agent_class.system_message
-    if hasattr(_agent_class, "in_context_example"):
-        metadata["in_context_example"] = _agent_class.in_context_example
+    _AGENT_CLASS = agenthub.Agent.get_cls(AGENT_CLASS)
+    if hasattr(_AGENT_CLASS, "system_message"):
+        metadata["system_message"] = _AGENT_CLASS.system_message
+    if hasattr(_AGENT_CLASS, "in_context_example"):
+        metadata["in_context_example"] = _AGENT_CLASS.in_context_example
     logger.info(f"Metadata: {metadata}")
     with open(os.path.join(output_dir, "metadata.json"), "w") as f:
         json.dump(metadata, f)
@@ -356,7 +363,7 @@ def resolve_issues(
     output_fp = open(output_file, "a")
 
     logger.info(
-        f"Evaluation started with Agent {agent_class}, model {model_name}, max iterations {max_iterations}."
+        f"Evaluation started with Agent {AGENT_CLASS}, model {model_name}, max iterations {max_iterations}."
     )
 
     # =============================================
@@ -396,13 +403,12 @@ def resolve_issues(
             for issue in issues:
                 future = executor.submit(
                     process_issue,
-                    github_owner,
-                    github_repo,
-                    issue,
-                    container_image,
-                    agent_class,
-                    metadata,
-                    output_dir,
+                    issue=issue,
+                    base_commit=base_commit,
+                    max_iterations=max_iterations,
+                    llm_config=llm_config,
+                    output_dir=output_dir,
+                    container_image=container_image,
                     reset_logger=bool(num_workers > 1),
                 )
                 future.add_done_callback(update_progress)
@@ -470,6 +476,18 @@ if __name__ == "__main__":
         default="output",
         help="Output directory to write the results.",
     )
+    parser.add_argument(
+        "--llm-model",
+        type=str,
+        default=None,
+        help="LLM model to use for evaluation.",
+    )
+    parser.add_argument(
+        "--llm-api-key",
+        type=str,
+        default=None,
+        help="LLM API key to use for evaluation.",
+    )
     my_args = parser.parse_args()
 
     github_owner, github_repo = my_args.github_repo.split("/")
@@ -479,14 +497,19 @@ if __name__ == "__main__":
     if not github_token:
         raise ValueError("Github token is required.")
 
+    llm_config = LLMConfig(
+        model=my_args.llm_model or os.environ["LLM_MODEL"],
+        api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
+    )
+
     resolve_issues(
         github_owner=github_owner,
         github_repo=github_repo,
         github_token=github_token,
         container_image=my_args.container_image,
-        agent_class=my_args.agent_class,
         max_iterations=my_args.max_iterations,
         limit_issues=my_args.limit_issues,
         num_workers=my_args.num_workers,
         output_dir=my_args.output_dir,
+        llm_config=llm_config,
     )
