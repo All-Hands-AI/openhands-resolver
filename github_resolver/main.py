@@ -293,6 +293,7 @@ def resolve_issues(
     limit_issues: int | None,
     num_workers: int,
     output_dir: str,
+    llm_config: LLMConfig,
     container_image: str | None = None,
 ) -> None:
     """Resolve github issues.
