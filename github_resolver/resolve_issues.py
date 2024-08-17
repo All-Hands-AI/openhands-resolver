@@ -126,7 +126,7 @@ async def complete_runtime(
     logger.info('-' * 30)
     logger.info('BEGIN Runtime Completion Fn')
     logger.info('-' * 30)
-    obs: Observation
+    obs: CmdOutputObservation
 
     action = CmdRunAction(command=f'cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
@@ -253,6 +253,8 @@ async def process_issue(
         runtime=runtime,
         fake_user_response_fn=codeact_user_response,
     )
+    if state is None:
+        raise RuntimeError("Failed to run the agent.")
 
     # Get git patch
     return_val = await complete_runtime(runtime, base_commit)
