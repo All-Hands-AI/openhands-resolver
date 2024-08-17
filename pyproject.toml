@@ -10,7 +10,6 @@ include = ["poetry.lock"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-PyGithub = "*"
 datasets = "*"
 pandas = "*"
 litellm = "*"
@@ -118,7 +117,6 @@ streamlit = "*"
 whatthepatch = "*"
 retry = "*"
 evaluate = "*"
-swebench = { git = "https://github.com/OpenDevin/SWE-bench.git" }
 func_timeout = "*"
 sympy = "*"
 gdown = "*"
