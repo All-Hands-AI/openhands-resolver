@@ -2,7 +2,7 @@
 
 import asyncio
 import shutil
-from typing import Any
+from typing import Any, cast
 import requests
 import argparse
 import json
@@ -98,7 +98,7 @@ async def initialize_runtime(
 
     action = CmdRunAction(command=f'cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if obs.exit_code != 0:
         raise RuntimeError(
@@ -107,7 +107,7 @@ async def initialize_runtime(
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
@@ -130,7 +130,7 @@ async def complete_runtime(
 
     action = CmdRunAction(command=f'cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if obs.exit_code != 0:
         raise RuntimeError(
@@ -139,14 +139,14 @@ async def complete_runtime(
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
     action = CmdRunAction(command='git add -A')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if obs.exit_code != 0:
         raise RuntimeError(f"Failed to git add. Exit code: {obs.exit_code}")
@@ -160,7 +160,7 @@ async def complete_runtime(
         )
         action.timeout = 600 + 100 * n_retries
         logger.info(action, extra={'msg_type': 'ACTION'})
-        obs = await runtime.run_action(action)
+        obs = cast(CmdOutputObservation, await runtime.run_action(action))
         logger.info(obs, extra={'msg_type': 'OBSERVATION'})
         n_retries += 1
         if isinstance(obs, CmdOutputObservation):
@@ -207,12 +207,12 @@ async def process_issue(
     output_dir: str,
     container_image: str,
     reset_logger: bool = True,
-) -> None:
+) -> ResolverOutput:
 
     # Setup the logger properly, so you can run multi-processing to parallelize processing
     if reset_logger:
         log_dir = os.path.join(output_dir, 'infer_logs')
-        reset_logger_for_multiprocessing(logger, issue.number, log_dir)
+        reset_logger_for_multiprocessing(logger, str(issue.number), log_dir)
     else:
         logger.info(f'Starting fixing issue {issue.number}.')
 
@@ -271,6 +271,7 @@ async def process_issue(
     output = ResolverOutput(
         issue=issue,
         instruction=instruction,
+        base_commit=base_commit,
         git_patch=git_patch,
         history=histories,
         metrics=metrics,
@@ -314,7 +315,11 @@ def download_issues_from_github(
             continue
         converted_issues.append(
             GithubIssue(
-                number=issue["number"], title=issue["title"], body=issue["body"]
+                github_owner=github_owner,
+                github_repo=github_repo,
+                number=issue["number"],
+                title=issue["title"],
+                body=issue["body"],
             )
         )
     return converted_issues
@@ -330,7 +335,7 @@ async def resolve_issues(
     num_workers: int,
     output_dir: str,
     llm_config: LLMConfig,
-    container_image: str | None = None,
+    container_image: str,
 ) -> None:
     """Resolve github issues.
 
@@ -372,7 +377,7 @@ async def resolve_issues(
         ]
     ).decode("utf-8")
     if "fatal" in checkout_output:
-        raise iuntimeError(f"Failed to clone repository: {checkout_output}")
+        raise RuntimeError(f"Failed to clone repository: {checkout_output}")
 
     # get the commit id of current repo for reproducibility
     base_commit = (
@@ -550,14 +555,18 @@ if __name__ == "__main__":
         my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
     )
     github_username = (
-        my_args.github_username if my_args.github_username else os.getenv("GITHUB_USERNAME")
+        my_args.github_username
+        if my_args.github_username
+        else os.getenv("GITHUB_USERNAME")
     )
 
     if not github_token:
         raise ValueError("Github token is required.")
 
     if os.path.exists(my_args.output_dir):
-        raise ValueError(f"Output directory {my_args.output_dir} already exists, remove it or specify a different one.")
+        raise ValueError(
+            f"Output directory {my_args.output_dir} already exists, remove it or specify a different one."
+        )
 
     llm_config = LLMConfig(
         model=my_args.llm_model or os.environ["LLM_MODEL"],
