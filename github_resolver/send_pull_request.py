@@ -6,33 +6,45 @@ import shutil
 import subprocess
 import time
 from github import Github
+import re
 
 print("Script started")
 
-# ... (keep all the previous functions unchanged)
-
-def main(args):
-    print("Main function started")
-    print(f"Current working directory: {os.getcwd()}")
-    print("Environment variables:")
-    for key, value in os.environ.items():
-        print(f"{key}: {'*' * len(value)}")  # Print asterisks instead of the actual value for security
-
-    issue_data = load_issue_data(args.output_dir, args.issue_number)
-    if not issue_data:
-        print(f"Error: Issue {args.issue_number} not found in {args.output_dir}/output.jsonl")
+def apply_patch(repo_dir, patch):
+    print(f"Applying patch to {repo_dir}")
+    
+    # Parse the patch content
+    file_to_patch = None
+    changes = []
+    for line in patch.split('\n'):
+        if line.startswith('+++'):
+            file_to_patch = line.split()[1][2:]  # Remove 'b/' prefix
+        elif line.startswith('@@ '):
+            continue
+        elif line.startswith('+'):
+            changes.append(('add', line[1:]))
+        elif line.startswith('-'):
+            changes.append(('remove', line[1:]))
+    
+    if not file_to_patch:
+        print("Error: Could not determine file to patch")
         return
+    
+    file_path = os.path.join(repo_dir, file_to_patch)
+    
+    new_content = []
+    change_index = 0
+    
+    while change_index < len(changes):
+        if changes[change_index][0] == 'remove':
+            change_index += 1
+        elif changes[change_index][0] == 'add':
+            new_content.append(changes[change_index][1])
+            change_index += 1
+    
+    with open(file_path, 'w') as f:
+        f.write('\n'.join(new_content))
+    
+    print("Patch applied successfully")
 
-    # ... (keep the rest of the main function unchanged)
-
-    # Push the branch to GitHub
-    github_token = os.environ.get("GITHUB_TOKEN")
-    if not github_token:
-        print("Error: GITHUB_TOKEN environment variable not set")
-        return
-    else:
-        print(f"GITHUB_TOKEN found: {github_token[:4]}...{github_token[-4:]}")
-
-    # ... (keep the rest of the main function unchanged)
-
-# ... (keep the rest of the script unchanged)
+# ... (keep the rest of the code unchanged)

@@ -1,4 +1,3 @@
 mypy.ini
 .env
 __pycache__
-output/
