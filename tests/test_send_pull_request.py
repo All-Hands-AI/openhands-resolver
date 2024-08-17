@@ -1,13 +1,14 @@
-
 import os
 import tempfile
 import pytest
 from github_resolver.send_pull_request import apply_patch
 
+
 @pytest.fixture
 def mock_repo():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
+
 
 def test_apply_patch(mock_repo):
     # Create a sample file in the mock repo
