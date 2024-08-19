@@ -283,19 +283,19 @@ async def process_issue(
 
 
 def download_issues_from_github(
-    github_owner: str, github_repo: str, github_token: str
+    owner: str, repo: str, github_token: str
 ) -> list[GithubIssue]:
     """Download issues from Github.
 
     Args:
-        github_owner: Owner of the github repo
-        github_repo: Github repository to resolve issues.
+        owner: Owner of the github repo
+        repo: Github repository to resolve issues.
         github_token: Github token to access the repository.
 
     Returns:
         List of Github issues.
     """
-    url = f"https://api.github.com/repos/{github_owner}/{github_repo}/issues"
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
     headers = {
         "Authorization": f"token {github_token}",
         "Accept": "application/vnd.github.v3+json",
@@ -317,8 +317,8 @@ def download_issues_from_github(
             continue
         converted_issues.append(
             GithubIssue(
-                github_owner=github_owner,
-                github_repo=github_repo,
+                owner=owner,
+                repo=repo,
                 number=issue["number"],
                 title=issue["title"],
                 body=issue["body"],
@@ -328,8 +328,8 @@ def download_issues_from_github(
 
 
 async def resolve_issues(
-    github_owner: str,
-    github_repo: str,
+    owner: str,
+    repo: str,
     github_token: str,
     github_username: str,
     max_iterations: int,
@@ -342,8 +342,8 @@ async def resolve_issues(
     """Resolve github issues.
 
     Args:
-        github_owner: Github owner of the repo.
-        github_repo: Github repository to resolve issues in form of `owner/repo`.
+        owner: Github owner of the repo.
+        repo: Github repository to resolve issues in form of `owner/repo`.
         github_token: Github token to access the repository.
         github_username: Github username to access the repository.
         max_iterations: Maximum number of iterations to run
@@ -354,7 +354,7 @@ async def resolve_issues(
 
     # Load dataset
     issues: list[GithubIssue] = download_issues_from_github(
-        github_owner, github_repo, github_token
+        owner, repo, github_token
     )
     if limit_issues is not None:
         issues = issues[:limit_issues]
@@ -374,7 +374,7 @@ async def resolve_issues(
         [
             "git",
             "clone",
-            f"https://{github_username}:{github_token}@github.com/{github_owner}/{github_repo}",
+            f"https://{github_username}:{github_token}@github.com/{owner}/{repo}",
             f"{output_dir}/repo",
         ]
     ).decode("utf-8")
@@ -552,7 +552,7 @@ if __name__ == "__main__":
     )
     my_args = parser.parse_args()
 
-    github_owner, github_repo = my_args.github_repo.split("/")
+    owner, repo = my_args.repo.split("/")
     github_token = (
         my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
     )
@@ -577,8 +577,8 @@ if __name__ == "__main__":
 
     asyncio.run(
         resolve_issues(
-            github_owner=github_owner,
-            github_repo=github_repo,
+            owner=owner,
+            repo=repo,
             github_token=github_token,
             github_username=github_username,
             container_image=my_args.container_image,

@@ -1,15 +1,32 @@
 import os
 import tempfile
 import pytest
+from unittest.mock import patch, MagicMock
 
-from github_resolver.send_pull_request import apply_patch, load_resolver_output, copy_repo_to_patches
-from github_resolver.resolver_output import ResolverOutput
+from github_resolver.send_pull_request import (
+    apply_patch,
+    load_resolver_output,
+    initialize_repo,
+    send_pull_request,
+)
+from github_resolver.resolver_output import ResolverOutput, GithubIssue
 
 
 @pytest.fixture
 def mock_output_dir():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
+
+
+@pytest.fixture
+def mock_github_issue():
+    return GithubIssue(
+        number=42,
+        title="Test Issue",
+        owner="test-owner",
+        repo="test-repo",
+        body="Test body",
+    )
 
 
 def test_load_resolver_output():
@@ -20,8 +37,8 @@ def test_load_resolver_output():
     assert isinstance(resolver_output, ResolverOutput)
     assert resolver_output.issue.number == 3
     assert resolver_output.issue.title == "Revert toggle for dark mode"
-    assert resolver_output.issue.github_owner == "neubig"
-    assert resolver_output.issue.github_repo == "pr-viewer"
+    assert resolver_output.issue.owner == "neubig"
+    assert resolver_output.issue.repo == "pr-viewer"
 
     # Test loading a non-existent issue
     with pytest.raises(ValueError):
@@ -56,7 +73,7 @@ index 9daeafb..b02def2 100644
     assert updated_content.strip() == "Updated content\nNew line".strip()
 
 
-def test_copy_repo_to_patches(mock_output_dir):
+def test_initialize_repo(mock_output_dir):
     # Create some sample files in the mock repo
     os.makedirs(os.path.join(mock_output_dir, "repo"))
     with open(os.path.join(mock_output_dir, "repo", "file1.txt"), "w") as f:
@@ -64,7 +81,7 @@ def test_copy_repo_to_patches(mock_output_dir):
 
     # Copy the repo to patches
     ISSUE_NUMBER = 3
-    copy_repo_to_patches(mock_output_dir, ISSUE_NUMBER)
+    initialize_repo(mock_output_dir, ISSUE_NUMBER)
     patches_dir = os.path.join(mock_output_dir, "patches", f"issue_{ISSUE_NUMBER}")
 
     # Check if files were copied correctly
@@ -73,3 +90,37 @@ def test_copy_repo_to_patches(mock_output_dir):
     # Check file contents
     with open(os.path.join(patches_dir, "file1.txt"), "r") as f:
         assert f.read() == "hello world"
+
+
+@patch('github_resolver.send_pull_request.requests.get')
+@patch('github_resolver.send_pull_request.requests.post')
+@patch('github_resolver.send_pull_request.os.system')
+def test_send_pull_request(mock_os_system, mock_post, mock_get, mock_github_issue):
+    # Mock API responses
+    mock_get.side_effect = [
+        MagicMock(json=lambda: {"default_branch": "main"}),
+        MagicMock(json=lambda: {"object": {"sha": "test-sha"}}),
+    ]
+    mock_post.return_value.json.return_value = {
+        "html_url": "https://github.com/test-owner/test-repo/pull/1"
+    }
+
+    # Call the function
+    send_pull_request(
+        github_issue=mock_github_issue,
+        github_token="test-token",
+        github_username="test-user",
+        output_dir="/tmp/test-output",
+    )
+
+    # Assert API calls
+    assert mock_get.call_count == 2
+    assert mock_post.call_count == 2
+
+    # Assert git commands
+    assert mock_os_system.call_count == 2
+    mock_os_system.assert_any_call("git -C /tmp/test-output checkout -b fix-issue-42")
+    mock_os_system.assert_any_call(
+        "git -C /tmp/test-output push "
+        "https://test-user:test-token@github.com/test-owner/test-repo.git fix-issue-42"
+    )
