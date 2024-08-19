@@ -1,13 +1,31 @@
 import os
 import tempfile
 import pytest
-from github_resolver.send_pull_request import apply_patch
+
+from github_resolver.send_pull_request import apply_patch, load_resolver_output
+from github_resolver.resolver_output import ResolverOutput
 
 
 @pytest.fixture
 def mock_repo():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
+
+
+def test_load_resolver_output():
+    mock_output_jsonl = 'tests/mock_output/output.jsonl'
+
+    # Test loading an existing issue
+    resolver_output = load_resolver_output(mock_output_jsonl, 3)
+    assert isinstance(resolver_output, ResolverOutput)
+    assert resolver_output.issue.number == 3
+    assert resolver_output.issue.title == "Revert toggle for dark mode"
+    assert resolver_output.issue.github_owner == "neubig"
+    assert resolver_output.issue.github_repo == "pr-viewer"
+
+    # Test loading a non-existent issue
+    with pytest.raises(ValueError):
+        load_resolver_output(mock_output_jsonl, 999)
 
 
 def test_apply_patch(mock_repo):
