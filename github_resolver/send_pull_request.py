@@ -1,6 +1,7 @@
 import argparse
 import os
 import json
+import shutil
 from github_resolver.resolver_output import ResolverOutput
 
 
@@ -50,6 +51,21 @@ def apply_patch(repo_dir: str, patch: str) -> None:
     print("Patch applied successfully")
 
 
+def copy_repo_to_patches(output_dir: str, issue_number: int) -> str:
+    src_dir = os.path.join(output_dir, "repo")
+    dest_dir = os.path.join(output_dir, "patches", f"issue_{issue_number}")
+
+    if not os.path.exists(src_dir):
+        raise ValueError(f"Source directory {src_dir} does not exist.")
+
+    if os.path.exists(dest_dir):
+        shutil.rmtree(dest_dir)
+
+    shutil.copytree(src_dir, dest_dir)
+    print(f"Copied repository to {dest_dir}")
+    return dest_dir
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Send a pull request to Github.")
@@ -71,6 +87,12 @@ if __name__ == "__main__":
         default="output",
         help="Output directory to write the results.",
     )
+    parser.add_argument(
+        "--issue-number",
+        type=int,
+        default=None,
+        help="Issue number to send the pull request for.",
+    )
     my_args = parser.parse_args()
 
     github_token = (
@@ -84,6 +106,15 @@ if __name__ == "__main__":
 
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
+
+    resolver_output = load_resolver_output(
+        os.path.join(my_args.output_dir, "output.jsonl"),
+        my_args.issue_number,
+    )
+
+    patched_repo_dir = copy_repo_to_patches(
+        my_args.output_dir, resolver_output.issue.number
+    )
 
     send_pull_request(
         github_token=github_token,
