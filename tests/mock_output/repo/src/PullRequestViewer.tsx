@@ -30,7 +30,7 @@ const PullRequestViewer: React.FC = () => {
     const fetchRepos = async () => {
       try {
         const response = await octokit.repos.listForOrg({
-          org: 'OpenDevin',
+          org: 'All-Hands-AI',
           type: 'all',
         });
         const repoOptions = response.data.map(repo => ({
@@ -50,7 +50,7 @@ const PullRequestViewer: React.FC = () => {
       if (selectedRepo) {
         try {
           const response = await octokit.pulls.list({
-            owner: 'OpenDevin',
+            owner: 'OpenHands',
             repo: selectedRepo.value,
             state: 'open',
           });
