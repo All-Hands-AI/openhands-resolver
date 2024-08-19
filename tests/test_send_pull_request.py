@@ -136,6 +136,31 @@ index 9daeafb..b02def2 100644
     assert dos_content.decode('utf-8').split('\r\n')[1] == "Updated Line 2"
 
 
+def test_apply_patch_with_dev_null(mock_output_dir):
+    # Create a patch that adds a new file
+    patch_content = """
+diff --git a/new_file.txt b/new_file.txt
+new file mode 100644
+index 0000000..3b18e51
+--- /dev/null
++++ b/new_file.txt
+@@ -0,0 +1 @@
++hello world
+"""
+
+    # Apply the patch
+    apply_patch(mock_output_dir, patch_content)
+
+    # Check if the new file was created
+    new_file_path = os.path.join(mock_output_dir, "new_file.txt")
+    assert os.path.exists(new_file_path), "New file was not created"
+
+    # Check if the file content is correct
+    with open(new_file_path, "r") as f:
+        content = f.read().strip()
+    assert content == "hello world", "File content is incorrect"
+
+
 def test_initialize_repo(mock_output_dir):
     # Copy the repo to patches
     ISSUE_NUMBER = 3

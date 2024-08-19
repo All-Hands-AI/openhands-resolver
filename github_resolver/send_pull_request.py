@@ -23,30 +23,39 @@ def apply_patch(repo_dir: str, patch: str) -> None:
 
     for diff in diffs:
         if not diff.header.new_path:
-            print("Error: Could not determine file to patch")
+            print("Warning: Could not determine file to patch")
             continue
 
-        file_path = os.path.join(repo_dir, diff.header.new_path.lstrip('b/'))
+        old_path = (
+            os.path.join(repo_dir, diff.header.old_path.lstrip('b/'))
+            if diff.header.old_path and diff.header.old_path != '/dev/null'
+            else None
+        )
+        new_path = os.path.join(repo_dir, diff.header.new_path.lstrip('b/'))
 
-        # Open the file in binary mode to detect line endings
-        with open(file_path, 'rb') as f:
-            original_content = f.read()
+        if old_path:
+            # Open the file in binary mode to detect line endings
+            with open(old_path, 'rb') as f:
+                original_content = f.read()
 
-        # Detect line endings
-        if b'\r\n' in original_content:
-            newline = '\r\n'
-        elif b'\n' in original_content:
-            newline = '\n'
+            # Detect line endings
+            if b'\r\n' in original_content:
+                newline = '\r\n'
+            elif b'\n' in original_content:
+                newline = '\n'
+            else:
+                newline = None  # Let Python decide
+
+            with open(old_path, 'r', newline=newline) as f:
+                split_content = [x.strip(newline) for x in f.readlines()]
         else:
-            newline = None  # Let Python decide
-
-        with open(file_path, 'r', newline=newline) as f:
-            split_content = [x.strip(newline) for x in f.readlines()]
+            newline = '\n'
+            split_content = []
 
         new_content = whatthepatch.apply_diff(diff, split_content)
 
         # Write the new content using the detected line endings
-        with open(file_path, 'w', newline=newline) as f:
+        with open(new_path, 'w', newline=newline) as f:
             for line in new_content:
                 print(line, file=f)
 
