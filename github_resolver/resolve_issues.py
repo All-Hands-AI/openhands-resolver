@@ -126,7 +126,7 @@ async def complete_runtime(
     logger.info('-' * 30)
     logger.info('BEGIN Runtime Completion Fn')
     logger.info('-' * 30)
-    obs: Observation
+    obs: CmdOutputObservation
 
     action = CmdRunAction(command=f'cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
@@ -253,6 +253,8 @@ async def process_issue(
         runtime=runtime,
         fake_user_response_fn=codeact_user_response,
     )
+    if state is None:
+        raise RuntimeError("Failed to run the agent.")
 
     # Get git patch
     return_val = await complete_runtime(runtime, base_commit)
@@ -281,21 +283,21 @@ async def process_issue(
 
 
 def download_issues_from_github(
-    github_owner: str, github_repo: str, github_token: str
+    owner: str, repo: str, token: str
 ) -> list[GithubIssue]:
     """Download issues from Github.
 
     Args:
-        github_owner: Owner of the github repo
-        github_repo: Github repository to resolve issues.
-        github_token: Github token to access the repository.
+        owner: Owner of the github repo
+        repo: Github repository to resolve issues.
+        token: Github token to access the repository.
 
     Returns:
         List of Github issues.
     """
-    url = f"https://api.github.com/repos/{github_owner}/{github_repo}/issues"
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
     headers = {
-        "Authorization": f"token {github_token}",
+        "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
     response = requests.get(url, headers=headers)
@@ -315,8 +317,8 @@ def download_issues_from_github(
             continue
         converted_issues.append(
             GithubIssue(
-                github_owner=github_owner,
-                github_repo=github_repo,
+                owner=owner,
+                repo=repo,
                 number=issue["number"],
                 title=issue["title"],
                 body=issue["body"],
@@ -326,10 +328,10 @@ def download_issues_from_github(
 
 
 async def resolve_issues(
-    github_owner: str,
-    github_repo: str,
-    github_token: str,
-    github_username: str,
+    owner: str,
+    repo: str,
+    token: str,
+    username: str,
     max_iterations: int,
     limit_issues: int | None,
     num_workers: int,
@@ -340,10 +342,10 @@ async def resolve_issues(
     """Resolve github issues.
 
     Args:
-        github_owner: Github owner of the repo.
-        github_repo: Github repository to resolve issues in form of `owner/repo`.
-        github_token: Github token to access the repository.
-        github_username: Github username to access the repository.
+        owner: Github owner of the repo.
+        repo: Github repository to resolve issues in form of `owner/repo`.
+        token: Github token to access the repository.
+        username: Github username to access the repository.
         max_iterations: Maximum number of iterations to run
         limit_issues: Limit the number of issues to resolve.
         output_dir: Output directory to write the results.
@@ -352,7 +354,7 @@ async def resolve_issues(
 
     # Load dataset
     issues: list[GithubIssue] = download_issues_from_github(
-        github_owner, github_repo, github_token
+        owner, repo, token
     )
     if limit_issues is not None:
         issues = issues[:limit_issues]
@@ -372,7 +374,7 @@ async def resolve_issues(
         [
             "git",
             "clone",
-            f"https://{github_username}:{github_token}@github.com/{github_owner}/{github_repo}",
+            f"https://{username}:{token}@github.com/{owner}/{repo}",
             f"{output_dir}/repo",
         ]
     ).decode("utf-8")
@@ -477,19 +479,19 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Resolve issues from Github.")
     parser.add_argument(
-        "--github-repo",
+        "--repo",
         type=str,
         required=True,
         help="Github repository to resolve issues in form of `owner/repo`.",
     )
     parser.add_argument(
-        "--github-token",
+        "--token",
         type=str,
         default=None,
         help="Github token to access the repository.",
     )
     parser.add_argument(
-        "--github-username",
+        "--username",
         type=str,
         default=None,
         help="Github username to access the repository.",
@@ -550,17 +552,17 @@ if __name__ == "__main__":
     )
     my_args = parser.parse_args()
 
-    github_owner, github_repo = my_args.github_repo.split("/")
-    github_token = (
-        my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
+    owner, repo = my_args.repo.split("/")
+    token = (
+        my_args.token if my_args.token else os.getenv("GITHUB_TOKEN")
     )
-    github_username = (
-        my_args.github_username
-        if my_args.github_username
+    username = (
+        my_args.username
+        if my_args.username
         else os.getenv("GITHUB_USERNAME")
     )
 
-    if not github_token:
+    if not token:
         raise ValueError("Github token is required.")
 
     if os.path.exists(my_args.output_dir):
@@ -575,10 +577,10 @@ if __name__ == "__main__":
 
     asyncio.run(
         resolve_issues(
-            github_owner=github_owner,
-            github_repo=github_repo,
-            github_token=github_token,
-            github_username=github_username,
+            owner=owner,
+            repo=repo,
+            token=token,
+            username=username,
             container_image=my_args.container_image,
             max_iterations=my_args.max_iterations,
             limit_issues=my_args.limit_issues,

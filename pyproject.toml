@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "github_resolver"
 version = "0.1.0"
-description = "OpenDevin Issue Resolver"
+description = "OpenHands Issue Resolver"
 authors = ["All Hands AI"]
 license = "Proprietary"
 readme = "README.md"
@@ -117,7 +117,6 @@ streamlit = "*"
 whatthepatch = "*"
 retry = "*"
 evaluate = "*"
-swebench = { git = "https://github.com/OpenDevin/SWE-bench.git" }
 func_timeout = "*"
 sympy = "*"
 gdown = "*"
