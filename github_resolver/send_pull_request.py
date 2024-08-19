@@ -143,7 +143,7 @@ def send_pull_request(
     )
     result = subprocess.run(push_command, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Error pushing changes: {result.stderr}")
+        print(f"Error pushing changes\n{push_command}\n{result.stderr}")
         raise RuntimeError("Failed to push changes to the remote repository")
 
     # Create pull request
