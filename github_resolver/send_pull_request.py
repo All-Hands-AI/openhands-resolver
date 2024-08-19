@@ -6,6 +6,7 @@ from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
 import requests
 import subprocess
+import whatthepatch
 
 
 def load_resolver_output(output_jsonl: str, issue_number: int) -> ResolverOutput:
@@ -18,38 +19,36 @@ def load_resolver_output(output_jsonl: str, issue_number: int) -> ResolverOutput
 
 
 def apply_patch(repo_dir: str, patch: str) -> None:
+    diffs = whatthepatch.parse_patch(patch)
 
-    # Parse the patch content
-    file_to_patch = None
-    changes = []
-    for line in patch.split('\n'):
-        if line.startswith('+++'):
-            file_to_patch = line.split()[1][2:]  # Remove 'b/' prefix
-        elif line.startswith('@@ '):
+    for diff in diffs:
+        if not diff.header.new_path:
+            print("Error: Could not determine file to patch")
             continue
-        elif line.startswith('+'):
-            changes.append(('add', line[1:]))
-        elif line.startswith('-'):
-            changes.append(('remove', line[1:]))
 
-    if not file_to_patch:
-        print("Error: Could not determine file to patch")
-        return
+        file_path = os.path.join(repo_dir, diff.header.new_path.lstrip('b/'))
 
-    file_path = os.path.join(repo_dir, file_to_patch)
+        # Open the file in binary mode to detect line endings
+        with open(file_path, 'rb') as f:
+            original_content = f.read()
 
-    new_content = []
-    change_index = 0
+        # Detect line endings
+        if b'\r\n' in original_content:
+            newline = '\r\n'
+        elif b'\n' in original_content:
+            newline = '\n'
+        else:
+            newline = None  # Let Python decide
 
-    while change_index < len(changes):
-        if changes[change_index][0] == 'remove':
-            change_index += 1
-        elif changes[change_index][0] == 'add':
-            new_content.append(changes[change_index][1])
-            change_index += 1
+        with open(file_path, 'r', newline=newline) as f:
+            split_content = [x.strip(newline) for x in f.readlines()]
 
-    with open(file_path, 'w') as f:
-        f.write('\n'.join(new_content))
+        new_content = whatthepatch.apply_diff(diff, split_content)
+
+        # Write the new content using the detected line endings
+        with open(file_path, 'w', newline=newline) as f:
+            for line in new_content:
+                print(line, file=f)
 
     print("Patch applied successfully")
 

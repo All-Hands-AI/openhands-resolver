@@ -82,6 +82,60 @@ index 9daeafb..b02def2 100644
     assert updated_content.strip() == "Updated content\nNew line".strip()
 
 
+def test_apply_patch_preserves_line_endings(mock_output_dir):
+    # Create sample files with different line endings
+    unix_file = os.path.join(mock_output_dir, "unix_style.txt")
+    dos_file = os.path.join(mock_output_dir, "dos_style.txt")
+
+    with open(unix_file, "w", newline='\n') as f:
+        f.write("Line 1\nLine 2\nLine 3")
+
+    with open(dos_file, "w", newline='\r\n') as f:
+        f.write("Line 1\r\nLine 2\r\nLine 3")
+
+    # Create patches for both files
+    unix_patch = """
+diff --git a/unix_style.txt b/unix_style.txt
+index 9daeafb..b02def2 100644
+--- a/unix_style.txt
++++ b/unix_style.txt
+@@ -1,3 +1,3 @@
+ Line 1
+-Line 2
++Updated Line 2
+ Line 3
+"""
+
+    dos_patch = """
+diff --git a/dos_style.txt b/dos_style.txt
+index 9daeafb..b02def2 100644
+--- a/dos_style.txt
++++ b/dos_style.txt
+@@ -1,3 +1,3 @@
+ Line 1
+-Line 2
++Updated Line 2
+ Line 3
+"""
+
+    # Apply patches
+    apply_patch(mock_output_dir, unix_patch)
+    apply_patch(mock_output_dir, dos_patch)
+
+    # Check if line endings are preserved
+    with open(unix_file, "rb") as f:
+        unix_content = f.read()
+    with open(dos_file, "rb") as f:
+        dos_content = f.read()
+
+    assert b'\r\n' not in unix_content, "Unix-style line endings were changed to DOS-style"
+    assert b'\r\n' in dos_content, "DOS-style line endings were changed to Unix-style"
+
+    # Check if content was updated correctly
+    assert unix_content.decode('utf-8').split('\n')[1] == "Updated Line 2"
+    assert dos_content.decode('utf-8').split('\r\n')[1] == "Updated Line 2"
+
+
 def test_initialize_repo(mock_output_dir):
     # Copy the repo to patches
     ISSUE_NUMBER = 3
