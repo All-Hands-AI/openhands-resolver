@@ -15,6 +15,15 @@ from github_resolver.resolver_output import ResolverOutput, GithubIssue
 @pytest.fixture
 def mock_output_dir():
     with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = os.path.join(temp_dir, "repo")
+        # Initialize a GitHub repo in "repo" and add a commit with "README.md"
+        os.makedirs(repo_path)
+        os.system(f"git init {repo_path}")
+        readme_path = os.path.join(repo_path, "README.md")
+        with open(readme_path, "w") as f:
+            f.write("hello world")
+        os.system(f"git -C {repo_path} add README.md")
+        os.system(f"git -C {repo_path} commit -m 'Initial commit'")
         yield temp_dir
 
 
@@ -74,28 +83,27 @@ index 9daeafb..b02def2 100644
 
 
 def test_initialize_repo(mock_output_dir):
-    # Create some sample files in the mock repo
-    os.makedirs(os.path.join(mock_output_dir, "repo"))
-    with open(os.path.join(mock_output_dir, "repo", "file1.txt"), "w") as f:
-        f.write("hello world")
-
     # Copy the repo to patches
     ISSUE_NUMBER = 3
     initialize_repo(mock_output_dir, ISSUE_NUMBER)
     patches_dir = os.path.join(mock_output_dir, "patches", f"issue_{ISSUE_NUMBER}")
 
     # Check if files were copied correctly
-    assert os.path.exists(os.path.join(patches_dir, "file1.txt"))
+    assert os.path.exists(os.path.join(patches_dir, "README.md"))
 
     # Check file contents
-    with open(os.path.join(patches_dir, "file1.txt"), "r") as f:
+    with open(os.path.join(patches_dir, "README.md"), "r") as f:
         assert f.read() == "hello world"
 
 
-@patch('github_resolver.send_pull_request.requests.get')
-@patch('github_resolver.send_pull_request.requests.post')
-@patch('github_resolver.send_pull_request.os.system')
-def test_send_pull_request(mock_os_system, mock_post, mock_get, mock_github_issue):
+@patch('subprocess.run')
+@patch('requests.post')
+@patch('requests.get')
+def test_send_pull_request(
+    mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir
+):
+    repo_path = os.path.join(mock_output_dir, "repo")
+
     # Mock API responses
     mock_get.side_effect = [
         MagicMock(json=lambda: {"default_branch": "main"}),
@@ -105,22 +113,88 @@ def test_send_pull_request(mock_os_system, mock_post, mock_get, mock_github_issu
         "html_url": "https://github.com/test-owner/test-repo/pull/1"
     }
 
+    # Mock subprocess.run calls
+    mock_run.side_effect = [
+        MagicMock(returncode=0),  # git checkout -b
+        MagicMock(returncode=0),  # git push
+    ]
+
     # Call the function
-    send_pull_request(
+    result = send_pull_request(
         github_issue=mock_github_issue,
         github_token="test-token",
         github_username="test-user",
-        output_dir="/tmp/test-output",
+        patch_dir=repo_path,
     )
 
     # Assert API calls
-    assert mock_get.call_count == 2
-    assert mock_post.call_count == 2
+    assert mock_get.call_count == 1
+    assert mock_post.call_count == 1
 
-    # Assert git commands
-    assert mock_os_system.call_count == 2
-    mock_os_system.assert_any_call("git -C /tmp/test-output checkout -b fix-issue-42")
-    mock_os_system.assert_any_call(
-        "git -C /tmp/test-output push "
-        "https://test-user:test-token@github.com/test-owner/test-repo.git fix-issue-42"
+    # Assert subprocess.run calls
+    assert mock_run.call_count == 2
+
+    # Check the git checkout -b command
+    checkout_call = mock_run.call_args_list[0]
+    assert checkout_call[0][0].startswith(
+        f"git -C {repo_path} checkout -b fix-issue-42"
     )
+    assert checkout_call[1] == {'shell': True, 'capture_output': True, 'text': True}
+
+    # Check the git push command
+    push_call = mock_run.call_args_list[1]
+    assert push_call[0][0].startswith(
+        f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git fix-issue-42"
+    )
+    assert push_call[1] == {'shell': True, 'capture_output': True, 'text': True}
+
+    # Assert the result
+    assert result == "https://github.com/test-owner/test-repo/pull/1"
+
+
+@patch('subprocess.run')
+@patch('requests.post')
+@patch('requests.get')
+def test_send_pull_request_git_push_failure(
+    mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir
+):
+
+    repo_path = os.path.join(mock_output_dir, "repo")
+
+    # Mock API responses
+    mock_get.return_value = MagicMock(json=lambda: {"default_branch": "main"})
+
+    # Mock the subprocess.run calls
+    mock_run.side_effect = [
+        MagicMock(returncode=0),  # git checkout -b
+        MagicMock(returncode=1, stderr="Error: failed to push some refs"),  # git push
+    ]
+
+    # Test that RuntimeError is raised when git push fails
+    with pytest.raises(
+        RuntimeError, match="Failed to push changes to the remote repository"
+    ):
+        send_pull_request(
+            github_issue=mock_github_issue,
+            github_token="test-token",
+            github_username="test-user",
+            patch_dir=repo_path,
+        )
+
+    # Assert that subprocess.run was called twice
+    assert mock_run.call_count == 2
+
+    # Check the git checkout -b command
+    checkout_call = mock_run.call_args_list[0]
+    assert checkout_call[0][0].startswith(f"git -C {repo_path} checkout -b")
+    assert checkout_call[1] == {'shell': True, 'capture_output': True, 'text': True}
+
+    # Check the git push command
+    push_call = mock_run.call_args_list[1]
+    assert push_call[0][0].startswith(
+        f"git -C {repo_path} push https://test-user:test-token@github.com/"
+    )
+    assert push_call[1] == {'shell': True, 'capture_output': True, 'text': True}
+
+    # Assert that no pull request was created
+    mock_post.assert_not_called()

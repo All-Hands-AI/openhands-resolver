@@ -5,6 +5,7 @@ import shutil
 from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
 import requests
+import subprocess
 
 
 def load_resolver_output(output_jsonl: str, issue_number: int) -> ResolverOutput:
@@ -69,22 +70,44 @@ def initialize_repo(
     print(f"Copied repository to {dest_dir}")
 
     if base_commit:
-        os.system(f"git -C {dest_dir} checkout {base_commit}")
+        result = subprocess.run(
+            f"git -C {dest_dir} checkout {base_commit}",
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Error checking out commit: {result.stderr}")
+            raise RuntimeError("Failed to check out commit")
 
     return dest_dir
 
 
 def make_commit(repo_dir: str, issue: GithubIssue) -> None:
-    os.system(f"git -C {repo_dir} add .")
-    os.system(f"git -C {repo_dir} commit -m 'Fix issue #{issue.number}: {issue.title}'")
+    result = subprocess.run(
+        f"git -C {repo_dir} add .", shell=True, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"Error adding files: {result.stderr}")
+        raise RuntimeError("Failed to add files to git")
+
+    result = subprocess.run(
+        f"git -C {repo_dir} commit -m 'Fix issue #{issue.number}: {issue.title}'",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Error committing changes: {result.stderr}")
+        raise RuntimeError("Failed to commit changes")
 
 
 def send_pull_request(
     github_issue: GithubIssue,
     github_token: str,
     github_username: str,
-    output_dir: str,
-) -> None:
+    patch_dir: str,
+) -> str:
     # Set up headers and base URL for GitHub API
     headers = {
         "Authorization": f"token {github_token}",
@@ -100,25 +123,28 @@ def send_pull_request(
     response.raise_for_status()
     default_branch = response.json()["default_branch"]
 
-    # Get the SHA of the latest commit on the default branch
-    response = requests.get(
-        f"{base_url}/git/ref/heads/{default_branch}", headers=headers
-    )
-    response.raise_for_status()
-    base_sha = response.json()["object"]["sha"]
-
-    # Create a new branch
-    data = {"ref": f"refs/heads/{branch_name}", "sha": base_sha}
-    response = requests.post(f"{base_url}/git/refs", headers=headers, json=data)
-    response.raise_for_status()
-
     # Push changes to the new branch (using git command, as before)
-    os.system(f"git -C {output_dir} checkout -b {branch_name}")
-    os.system(
-        f"git -C {output_dir} push "
+    result = subprocess.run(
+        f"git -C {patch_dir} checkout -b {branch_name}",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Error creating new branch: {result.stderr}")
+        raise RuntimeError(
+            f"Failed to create a new branch {branch_name} in {patch_dir}:"
+        )
+
+    push_command = (
+        f"git -C {patch_dir} push "
         f"https://{github_username}:{github_token}@github.com/"
         f"{github_issue.owner}/{github_issue.repo}.git {branch_name}"
     )
+    result = subprocess.run(push_command, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error pushing changes: {result.stderr}")
+        raise RuntimeError("Failed to push changes to the remote repository")
 
     # Create pull request
     pr_title = f"Fix issue #{github_issue.number}: {github_issue.title}"
@@ -133,10 +159,17 @@ def send_pull_request(
         "base": default_branch,
     }
     response = requests.post(f"{base_url}/pulls", headers=headers, json=data)
+    if response.status_code == 403:
+        raise RuntimeError(
+            "Failed to create pull request due to missing permissions. "
+            "Make sure that the provided token has push permissions for the repository."
+        )
     response.raise_for_status()
     pr_data = response.json()
 
     print(f"Pull request created: {pr_data['html_url']}")
+
+    return pr_data['html_url']
 
 
 if __name__ == "__main__":
@@ -163,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--issue-number",
         type=int,
-        default=None,
+        required=True,
         help="Issue number to send the pull request for.",
     )
     my_args = parser.parse_args()
@@ -197,5 +230,5 @@ if __name__ == "__main__":
         github_issue=resolver_output.issue,
         github_token=github_token,
         github_username=github_username,
-        output_dir=patched_repo_dir,
+        patch_dir=patched_repo_dir,
     )
