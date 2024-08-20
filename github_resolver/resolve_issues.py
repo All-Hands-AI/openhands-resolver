@@ -24,6 +24,7 @@ from opendevin.controller.state.state import State
 from opendevin.core.logger import opendevin_logger as logger
 from opendevin.events.action import MessageAction
 from opendevin.events.action import CmdRunAction
+from opendevin.memory.history import ShortTermHistory
 from opendevin.events.observation import (
     Observation,
     CmdOutputObservation,
@@ -202,10 +203,10 @@ def get_instruction(
     return instruction
 
 
-def guess_success(issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> bool:
+def guess_success(issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, str]:
     """Guess if the issue is fixed based on the history and the issue description."""
     
-    last_message = history.get_last_observation().message
+    last_message = history.get_events_as_list()[-1].message
     
     prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
 
@@ -215,7 +216,7 @@ Issue description:
 Last message from AI agent:
 {last_message}
 
-Has the issue been successfully resolved? Answer with 'Yes' or 'No' and a brief explanation."""
+Has the issue been successfully resolved? Answer in JSON in the format {{success: bool, explanation: str}}."""
 
     response = completion(
         model=llm_config.model,
@@ -223,15 +224,12 @@ Has the issue been successfully resolved? Answer with 'Yes' or 'No' and a brief 
         api_key=llm_config.api_key
     )
     
-    answer = response.choices[0].message.content.strip().lower()
-    
-    if answer.startswith("yes"):
-        return True
-    elif answer.startswith("no"):
-        return False
-    else:
-        logger.warning(f"Unexpected response from LLM for issue {issue.number}: {answer}")
-        return False
+    answer = response.choices[0].message.content.strip()
+    try:
+        json_answer = json.loads(answer)
+        return json_answer['success'], json_answer['explanation']
+    except json.JSONDecodeError:
+        return False, f"Failed to decode JSON from LLM response: {answer}"
 
 
 async def process_issue(
@@ -299,11 +297,11 @@ async def process_issue(
     )
 
     # Serialize histories
-    histories = [dataclasses.asdict(event) for event in state.get_events()]
+    histories = [dataclasses.asdict(event) for event in state.history.get_events()]
     metrics = state.metrics.get() if state.metrics else None
 
     # determine success based on the history and the issue description
-    success = guess_success(issue, state.history, llm_config)
+    success, success_explanation = guess_success(issue, state.history, llm_config)
 
     # Save the output
     output = ResolverOutput(
@@ -314,6 +312,7 @@ async def process_issue(
         history=histories,
         metrics=metrics,
         success=success,
+        success_explanation=success_explanation,
         error=state.last_error if state and state.last_error else None,
     )
     return output

@@ -12,4 +12,5 @@ class ResolverOutput(BaseModel):
     history: list[dict[str, Any]]
     metrics: dict[str, Any] | None
     success: bool
+    success_explanation: str
     error: str | None
