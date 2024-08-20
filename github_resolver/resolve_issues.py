@@ -1,6 +1,7 @@
 # flake8: noqa: E501
 
 import asyncio
+import dataclasses
 import shutil
 from typing import Any, cast
 import requests
@@ -13,9 +14,11 @@ import subprocess
 
 from tqdm import tqdm
 
+from litellm import completion
 
 from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
+from opendevin.events.event import Event
 from opendevin.core.main import create_runtime, run_controller
 from opendevin.controller.state.state import State
 from opendevin.core.logger import opendevin_logger as logger
@@ -199,6 +202,38 @@ def get_instruction(
     return instruction
 
 
+def guess_success(issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> bool:
+    """Guess if the issue is fixed based on the history and the issue description."""
+    
+    last_message = history.get_last_observation().message
+    
+    prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
+
+Issue description:
+{issue.body}
+
+Last message from AI agent:
+{last_message}
+
+Has the issue been successfully resolved? Answer with 'Yes' or 'No' and a brief explanation."""
+
+    response = completion(
+        model=llm_config.model,
+        messages=[{"role": "user", "content": prompt}],
+        api_key=llm_config.api_key
+    )
+    
+    answer = response.choices[0].message.content.strip().lower()
+    
+    if answer.startswith("yes"):
+        return True
+    elif answer.startswith("no"):
+        return False
+    else:
+        logger.warning(f"Unexpected response from LLM for issue {issue.number}: {answer}")
+        return False
+
+
 async def process_issue(
     issue: GithubIssue,
     base_commit: str,
@@ -263,11 +298,12 @@ async def process_issue(
         f'Got git diff for instance {issue.number}:\n--------\n{git_patch}\n--------'
     )
 
-    # history is now available as a stream of events, rather than list of pairs of (Action, Observation)
-    # for compatibility with the existing output format, we can remake the pairs here
-    # remove when it becomes unnecessary
-    histories = state.history.compatibility_for_eval_history_pairs()
+    # Serialize histories
+    histories = [dataclasses.asdict(event) for event in state.get_events()]
     metrics = state.metrics.get() if state.metrics else None
+
+    # determine success based on the history and the issue description
+    success = guess_success(issue, state.history, llm_config)
 
     # Save the output
     output = ResolverOutput(
@@ -277,6 +313,7 @@ async def process_issue(
         git_patch=git_patch,
         history=histories,
         metrics=metrics,
+        success=success,
         error=state.last_error if state and state.last_error else None,
     )
     return output
