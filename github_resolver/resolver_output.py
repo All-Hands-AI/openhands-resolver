@@ -9,6 +9,8 @@ class ResolverOutput(BaseModel):
     instruction: str
     base_commit: str
     git_patch: str
-    history: list[tuple[dict, dict]]
+    history: list[dict[str, Any]]
     metrics: dict[str, Any] | None
+    success: bool
+    success_explanation: str
     error: str | None

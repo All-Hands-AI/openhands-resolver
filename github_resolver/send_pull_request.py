@@ -203,7 +203,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--issue-number",
-        type=int,
+        type=str,
         required=True,
         help="Issue number to send the pull request for.",
     )

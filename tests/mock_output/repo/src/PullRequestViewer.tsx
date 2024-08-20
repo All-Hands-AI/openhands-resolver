@@ -30,7 +30,7 @@ const PullRequestViewer: React.FC = () => {
     const fetchRepos = async () => {
       try {
         const response = await octokit.repos.listForOrg({
-          org: 'All-Hands-AI',
+          org: 'OpenDevin',
           type: 'all',
         });
         const repoOptions = response.data.map(repo => ({
@@ -49,12 +49,29 @@ const PullRequestViewer: React.FC = () => {
     const fetchPullRequests = async () => {
       if (selectedRepo) {
         try {
-          const response = await octokit.pulls.list({
-            owner: 'OpenHands',
-            repo: selectedRepo.value,
-            state: 'open',
-          });
-          setPullRequests(response.data);
+          let allPullRequests: PullRequest[] = [];
+          let page = 1;
+          let hasNextPage = true;
+
+          while (hasNextPage) {
+            const response = await octokit.pulls.list({
+              owner: 'OpenDevin',
+              repo: selectedRepo.value,
+              state: 'open',
+              per_page: 100,
+              page: page,
+            });
+
+            allPullRequests = [...allPullRequests, ...response.data];
+
+            if (response.data.length < 100) {
+              hasNextPage = false;
+            } else {
+              page++;
+            }
+          }
+
+          setPullRequests(allPullRequests);
         } catch (error) {
           console.error('Error fetching pull requests:', error);
         }
