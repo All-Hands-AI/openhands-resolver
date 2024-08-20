@@ -225,7 +225,8 @@ def test_send_pull_request(
     # Check the git push command
     push_call = mock_run.call_args_list[1]
     assert push_call[0][0].startswith(
-        f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git fix-issue-42"
+        f"git -C {repo_path} push "
+        "https://test-user:test-token@github.com/test-owner/test-repo.git fix-issue-42"
     )
     assert push_call[1] == {'shell': True, 'capture_output': True, 'text': True}
 

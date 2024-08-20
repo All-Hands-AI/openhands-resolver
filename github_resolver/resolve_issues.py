@@ -18,15 +18,12 @@ from litellm import completion
 
 from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
-from opendevin.events.event import Event
 from opendevin.core.main import create_runtime, run_controller
 from opendevin.controller.state.state import State
 from opendevin.core.logger import opendevin_logger as logger
-from opendevin.events.action import MessageAction
 from opendevin.events.action import CmdRunAction
 from opendevin.memory.history import ShortTermHistory
 from opendevin.events.observation import (
-    Observation,
     CmdOutputObservation,
     ErrorObservation,
 )
