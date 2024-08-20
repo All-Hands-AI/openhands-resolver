@@ -42,10 +42,10 @@ def test_load_resolver_output():
     mock_output_jsonl = 'tests/mock_output/output.jsonl'
 
     # Test loading an existing issue
-    resolver_output = load_resolver_output(mock_output_jsonl, 3)
+    resolver_output = load_resolver_output(mock_output_jsonl, 5)
     assert isinstance(resolver_output, ResolverOutput)
-    assert resolver_output.issue.number == 3
-    assert resolver_output.issue.title == "Revert toggle for dark mode"
+    assert resolver_output.issue.number == 5
+    assert resolver_output.issue.title == "Add MIT license"
     assert resolver_output.issue.owner == "neubig"
     assert resolver_output.issue.repo == "pr-viewer"
 
@@ -128,7 +128,9 @@ index 9daeafb..b02def2 100644
     with open(dos_file, "rb") as f:
         dos_content = f.read()
 
-    assert b'\r\n' not in unix_content, "Unix-style line endings were changed to DOS-style"
+    assert (
+        b'\r\n' not in unix_content
+    ), "Unix-style line endings were changed to DOS-style"
     assert b'\r\n' in dos_content, "DOS-style line endings were changed to Unix-style"
 
     # Check if content was updated correctly
