@@ -129,7 +129,7 @@ async def complete_runtime(
     logger.info('-' * 30)
     obs: CmdOutputObservation
 
-    action = CmdRunAction(command=f'cd /workspace')
+    action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
