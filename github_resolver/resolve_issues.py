@@ -97,7 +97,7 @@ async def initialize_runtime(
     logger.info('-' * 30)
     obs: CmdOutputObservation
 
-    action = CmdRunAction(command=f'cd /workspace')
+    action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = cast(CmdOutputObservation, await runtime.run_action(action))
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
@@ -254,7 +254,6 @@ async def process_issue(
 
     config = AppConfig(
         default_agent="CodeActAgent",
-        run_as_devin=False,
         runtime='eventstream',
         max_budget_per_task=4,
         max_iterations=max_iterations,
