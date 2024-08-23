@@ -6,11 +6,11 @@ from typing import Callable
 
 import pandas as pd
 
-from opendevin.controller.state.state import State
-from opendevin.core.logger import get_console_handler
-from opendevin.core.logger import opendevin_logger as logger
-from opendevin.events.action import Action
-from opendevin.events.action.message import MessageAction
+from openhands.controller.state.state import State
+from openhands.core.logger import get_console_handler
+from openhands.core.logger import openhands_logger as logger
+from openhands.events.action import Action
+from openhands.events.action.message import MessageAction
 
 
 def codeact_user_response(
