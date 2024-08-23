@@ -18,21 +18,21 @@ from litellm import completion
 
 from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
-from opendevin.core.main import create_runtime, run_controller
-from opendevin.controller.state.state import State
-from opendevin.core.logger import opendevin_logger as logger
-from opendevin.events.action import CmdRunAction
-from opendevin.memory.history import ShortTermHistory
-from opendevin.events.observation import (
+from openhands.core.main import create_runtime, run_controller
+from openhands.controller.state.state import State
+from openhands.core.logger import openhands_logger as logger
+from openhands.events.action import CmdRunAction
+from openhands.memory.history import ShortTermHistory
+from openhands.events.observation import (
     CmdOutputObservation,
     ErrorObservation,
 )
-from opendevin.core.config import (
+from openhands.core.config import (
     AppConfig,
     SandboxConfig,
 )
-from opendevin.core.config import LLMConfig
-from opendevin.runtime.runtime import Runtime
+from openhands.core.config import LLMConfig
+from openhands.runtime.runtime import Runtime
 from github_resolver.utils import (
     codeact_user_response,
     reset_logger_for_multiprocessing,

@@ -1,6 +1,4 @@
-import sys
 import pytest
-import os
 
 from unittest.mock import patch, MagicMock
 from github_resolver.resolve_issues import (
@@ -10,8 +8,8 @@ from github_resolver.resolve_issues import (
     get_instruction,
 )
 from github_resolver.github_issue import GithubIssue
-from opendevin.events.action import CmdRunAction
-from opendevin.events.observation import CmdOutputObservation
+from openhands.events.action import CmdRunAction
+from openhands.events.observation import CmdOutputObservation
 
 
 @pytest.fixture
