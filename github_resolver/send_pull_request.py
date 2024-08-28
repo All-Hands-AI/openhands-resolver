@@ -116,6 +116,7 @@ def send_pull_request(
     github_username: str,
     patch_dir: str,
     pr_type: str,
+    fork_owner: str | None = None,
 ) -> str:
 
     if pr_type not in ["branch", "draft", "ready"]:
@@ -149,10 +150,14 @@ def send_pull_request(
             f"Failed to create a new branch {branch_name} in {patch_dir}:"
         )
 
+    # Determine the repository to push to (original or fork)
+    push_owner = fork_owner if fork_owner else github_issue.owner
+    push_repo = github_issue.repo
+
     push_command = (
         f"git -C {patch_dir} push "
         f"https://{github_username}:{github_token}@github.com/"
-        f"{github_issue.owner}/{github_issue.repo}.git {branch_name}"
+        f"{push_owner}/{push_repo}.git {branch_name}"
     )
     result = subprocess.run(push_command, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
@@ -228,16 +233,26 @@ if __name__ == "__main__":
         required=True,
         help="Issue number to send the pull request for.",
     )
+    parser.add_argument(
+        "--fork-owner",
+        type=str,
+        default=None,
+        help="Owner of the fork to push changes to (if different from the original repo owner).",
+    )
     my_args = parser.parse_args()
 
     github_token = (
         my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
     )
+    if not github_token:
+        raise ValueError("Github token is not set, set via --github-token or GITHUB_TOKEN environment variable.")
     github_username = (
         my_args.github_username
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
+    if not github_username:
+        raise ValueError("Github username is not set, set via --github-username or GITHUB_USERNAME environment variable.") 
 
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
@@ -264,4 +279,5 @@ if __name__ == "__main__":
         github_username=github_username,
         patch_dir=patched_repo_dir,
         pr_type=my_args.pr_type,
+        fork_owner=my_args.fork_owner,
     )
