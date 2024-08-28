@@ -177,7 +177,7 @@ def test_initialize_repo(mock_output_dir):
         assert f.read() == "hello world"
 
 
-@pytest.mark.parametrize("pr_type", ["branch", "draft", "pr"])
+@pytest.mark.parametrize("pr_type", ["branch", "draft", "ready"])
 @patch('subprocess.run')
 @patch('requests.post')
 @patch('requests.get')
@@ -315,7 +315,7 @@ def test_send_pull_request_permission_error(
             github_token="test-token",
             github_username="test-user",
             patch_dir=repo_path,
-            pr_type="pr",
+            pr_type="ready",
         )
 
     # Assert that the branch was created and pushed
