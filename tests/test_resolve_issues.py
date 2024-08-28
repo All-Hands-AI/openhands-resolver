@@ -117,17 +117,23 @@ async def test_complete_runtime():
             exit_code=0,
             content="",
             command_id=3,
+            command='git config --global --add safe.directory /workspace',
+        ),
+        create_cmd_output(
+            exit_code=0,
+            content="",
+            command_id=4,
             command="git diff base_commit_hash fix",
         ),
         create_cmd_output(
-            exit_code=0, content="git diff content", command_id=4, command="git apply"
+            exit_code=0, content="git diff content", command_id=5, command="git apply"
         ),
     ]
 
     result = await complete_runtime(mock_runtime, "base_commit_hash")
 
     assert result == {"git_patch": "git diff content"}
-    assert mock_runtime.run_action.call_count == 4
+    assert mock_runtime.run_action.call_count == 5
 
 
 @pytest.mark.asyncio
@@ -150,7 +156,7 @@ async def test_process_issue(mock_output_dir):
     base_commit = "abcdef1234567890"
     max_iterations = 5
     llm_config = LLMConfig(model="test_model", api_key="test_api_key")
-    container_image = "test_image:latest"
+    runtime_container_image = "test_image:latest"
 
     # Mock return values
     mock_create_runtime.return_value = MagicMock()
@@ -186,7 +192,7 @@ async def test_process_issue(mock_output_dir):
             max_iterations,
             llm_config,
             mock_output_dir,
-            container_image,
+            runtime_container_image,
         )
 
         # Assert the result

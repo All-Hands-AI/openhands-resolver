@@ -145,6 +145,13 @@ async def complete_runtime(
     if obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
+    action = CmdRunAction(command='git config --global --add safe.directory /workspace')
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    if obs.exit_code != 0:
+        raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
+
     action = CmdRunAction(command='git add -A')
     logger.info(action, extra={'msg_type': 'ACTION'})
     obs = cast(CmdOutputObservation, await runtime.run_action(action))
@@ -235,7 +242,7 @@ async def process_issue(
     max_iterations: int,
     llm_config: LLMConfig,
     output_dir: str,
-    container_image: str,
+    runtime_container_image: str,
     reset_logger: bool = True,
 ) -> ResolverOutput:
 
@@ -258,7 +265,7 @@ async def process_issue(
         max_budget_per_task=4,
         max_iterations=max_iterations,
         sandbox=SandboxConfig(
-            container_image=container_image,
+            runtime_container_image=runtime_container_image,
             enable_auto_lint=True,
             use_host_network=False,
             # large enough timeout, since some testcases take very long to run
@@ -369,7 +376,7 @@ async def resolve_issues(
     num_workers: int,
     output_dir: str,
     llm_config: LLMConfig,
-    container_image: str,
+    runtime_container_image: str,
 ) -> None:
     """Resolve github issues.
 
@@ -381,7 +388,7 @@ async def resolve_issues(
         max_iterations: Maximum number of iterations to run
         limit_issues: Limit the number of issues to resolve.
         output_dir: Output directory to write the results.
-        container_image: Container image to use.
+        runtime_container_image: Container image to use.
     """
 
     # Load dataset
@@ -482,7 +489,7 @@ async def resolve_issues(
                 max_iterations,
                 llm_config,
                 output_dir,
-                container_image,
+                runtime_container_image,
                 bool(num_workers > 1),
             )
             tasks.append(task)
@@ -529,9 +536,9 @@ if __name__ == "__main__":
         help="Github username to access the repository.",
     )
     parser.add_argument(
-        "--container-image",
+        "--runtime-container-image",
         type=str,
-        default="nikolaik/python-nodejs:python3.11-nodejs22",
+        default="ghcr.io/all-hands-ai/runtime:3626-merge-nikolaik",
         help="Container image to use.",
     )
     parser.add_argument(
@@ -613,7 +620,7 @@ if __name__ == "__main__":
             repo=repo,
             token=token,
             username=username,
-            container_image=my_args.container_image,
+            runtime_container_image=my_args.runtime_container_image,
             max_iterations=my_args.max_iterations,
             limit_issues=my_args.limit_issues,
             num_workers=my_args.num_workers,
