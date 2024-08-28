@@ -3,3 +3,4 @@ mypy.ini
 __pycache__
 output/
 .vscode
+archive/
