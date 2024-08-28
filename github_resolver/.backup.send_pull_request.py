@@ -233,12 +233,6 @@ if __name__ == "__main__":
         required=True,
         help="Issue number to send the pull request for.",
     )
-    parser.add_argument(
-        "--fork-owner",
-        type=str,
-        default=None,
-        help="Owner of the fork to push changes to (if different from the original repo owner).",
-    )
     my_args = parser.parse_args()
 
     github_token = (
@@ -275,5 +269,4 @@ if __name__ == "__main__":
         github_username=github_username,
         patch_dir=patched_repo_dir,
         pr_type=my_args.pr_type,
-        fork_owner=my_args.fork_owner,
     )
