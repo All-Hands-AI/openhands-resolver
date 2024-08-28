@@ -13,6 +13,11 @@ python = "^3.11"
 openhands-ai = { git = "https://github.com/All-Hands-AI/openhands.git", rev = "main" }
 whatthepatch = "*"
 
+[tool.poetry.group.dev.dependencies]
+mypy = "*"
+ruff = "*"
+
 [tool.poetry.group.test.dependencies]
 pytest = "*"
 pytest-asyncio = "*"
+
