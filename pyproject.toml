@@ -16,6 +16,8 @@ whatthepatch = "*"
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
 ruff = "*"
+types-requests = "*"
+types-whatthepatch = "*"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
