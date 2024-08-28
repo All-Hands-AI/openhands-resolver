@@ -4804,6 +4804,20 @@ files = [
 tree-sitter = "*"
 
 [[package]]
+name = "types-requests"
+version = "2.32.0.20240712"
+description = "Typing stubs for requests"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "types-requests-2.32.0.20240712.tar.gz", hash = "sha256:90c079ff05e549f6bf50e02e910210b98b8ff1ebdd18e19c873cd237737c1358"},
+    {file = "types_requests-2.32.0.20240712-py3-none-any.whl", hash = "sha256:f754283e152c752e46e70942fa2a146b5bc70393522257bb85bd1ef7e019dcc3"},
+]
+
+[package.dependencies]
+urllib3 = ">=2"
+
+[[package]]
 name = "types-toml"
 version = "0.10.8.20240310"
 description = "Typing stubs for toml"
@@ -4823,6 +4837,17 @@ python-versions = ">=3.8"
 files = [
     {file = "types-tqdm-4.66.0.20240417.tar.gz", hash = "sha256:16dce9ef522ea8d40e4f5b8d84dd8a1166eefc13ceee7a7e158bf0f1a1421a31"},
     {file = "types_tqdm-4.66.0.20240417-py3-none-any.whl", hash = "sha256:248aef1f9986b7b8c2c12b3cb4399fc17dba0a29e7e3f3f9cd704babb879383d"},
+]
+
+[[package]]
+name = "types-whatthepatch"
+version = "1.0.2.5"
+description = "Typing stubs for whatthepatch"
+optional = false
+python-versions = "*"
+files = [
+    {file = "types-whatthepatch-1.0.2.5.tar.gz", hash = "sha256:1cefe3348d6c5333e61945ccc35f486eef5443d2029764ebc953387196cca70a"},
+    {file = "types_whatthepatch-1.0.2.5-py3-none-any.whl", hash = "sha256:67ab2aa011e528ebc67bcdbc05fa826ac1be244c30a9878540a9121c23a32693"},
 ]
 
 [[package]]
@@ -5349,4 +5374,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "f12fea749e65656d15b3fb0373992a91c8823c1e664ffb3d1bceab1051e5e38f"
+content-hash = "4b31962fa300bf5d98a38ae3ee191f20886d9ed0849d1f52aa5a263633b6d17a"
