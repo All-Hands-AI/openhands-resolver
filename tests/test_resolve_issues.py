@@ -45,6 +45,11 @@ def mock_os():
         yield mock_system, mock_join
 
 
+@pytest.fixture
+def mock_prompt_template():
+    return "Issue: {{ body }}\n\nPlease fix this issue."
+
+
 def test_create_git_patch(mock_subprocess, mock_os):
     mock_subprocess.return_value = b"abcdef1234567890"
     mock_os[0].return_value = 0
@@ -137,7 +142,7 @@ async def test_complete_runtime():
 
 
 @pytest.mark.asyncio
-async def test_process_issue(mock_output_dir):
+async def test_process_issue(mock_output_dir, mock_prompt_template):
     # Mock dependencies
     mock_create_runtime = AsyncMock()
     mock_initialize_runtime = AsyncMock()
@@ -193,6 +198,8 @@ async def test_process_issue(mock_output_dir):
             llm_config,
             mock_output_dir,
             runtime_container_image,
+            mock_prompt_template,  # Add this argument
+            reset_logger=False
         )
 
         # Assert the result
@@ -212,7 +219,7 @@ async def test_process_issue(mock_output_dir):
         mock_guess_success.assert_called_once()
 
 
-def test_get_instruction():
+def test_get_instruction(mock_prompt_template):
     issue = GithubIssue(
         owner="test_owner",
         repo="test_repo",
@@ -220,16 +227,9 @@ def test_get_instruction():
         title="Test Issue",
         body="This is a test issue",
     )
-    instruction = get_instruction(issue)
-
-    assert (
-        "Please fix the following issue for the repository in /workspace."
-        in instruction
-    )
-    assert "This is a test issue" in instruction
-    assert (
-        "You should ONLY interact with the environment provided to you" in instruction
-    )
+    instruction = get_instruction(issue, mock_prompt_template)
+    expected_instruction = "Issue: This is a test issue\n\nPlease fix this issue."
+    assert instruction == expected_instruction
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ import multiprocessing as mp
 import os
 import pathlib
 import subprocess
+import jinja2
 
 from tqdm import tqdm
 
@@ -26,6 +27,7 @@ from openhands.memory.history import ShortTermHistory
 from openhands.events.observation import (
     CmdOutputObservation,
     ErrorObservation,
+    Observation,
 )
 from openhands.core.config import (
     AppConfig,
@@ -95,7 +97,7 @@ async def initialize_runtime(
     logger.info('-' * 30)
     logger.info('BEGIN Runtime Completion Fn')
     logger.info('-' * 30)
-    obs: CmdOutputObservation
+    obs: Observation
 
     action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
@@ -103,7 +105,7 @@ async def initialize_runtime(
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(
-            f"Failed to change directory to /workspace. Exit code: {obs.exit_code}"
+            f"Failed to change directory to /workspace.\n{obs}"
         )
 
     action = CmdRunAction(command='git config --global core.pager ""')
@@ -111,7 +113,7 @@ async def initialize_runtime(
     obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
-        raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
+        raise RuntimeError(f"Failed to set git config.\n{obs}")
 
 
 async def complete_runtime(
@@ -192,18 +194,10 @@ async def complete_runtime(
 
 def get_instruction(
     issue: GithubIssue,
+    prompt_template: str,
 ):  # Prepare instruction
-    instruction = (
-        f'Please fix the following issue for the repository in /workspace.\n'
-        'Environment has been set up for you to start working. You may assume all necessary tools are installed.\n\n'
-        '# Problem Statement\n'
-        f'{issue.body}\n\n'
-        'IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.\n'
-        'You should NOT modify any existing test case files. If needed, you can add new test cases in a NEW file to reproduce the issue.\n'
-        'You SHOULD INCLUDE PROPER INDENTATION in your edit commands.\n'
-        'When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>.'
-    )
-
+    template = jinja2.Template(prompt_template)
+    instruction = template.render(body=issue.body)
     return instruction
 
 
@@ -243,6 +237,7 @@ async def process_issue(
     llm_config: LLMConfig,
     output_dir: str,
     runtime_container_image: str,
+    prompt_template: str,  # Add this parameter
     reset_logger: bool = True,
 ) -> ResolverOutput:
 
@@ -280,7 +275,7 @@ async def process_issue(
     runtime = await create_runtime(config, sid=f"{issue.number}")
     await initialize_runtime(runtime)
 
-    instruction = get_instruction(issue)
+    instruction = get_instruction(issue, prompt_template)
 
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     state: State | None = await run_controller(
@@ -392,6 +387,7 @@ async def resolve_issues(
     output_dir: str,
     llm_config: LLMConfig,
     runtime_container_image: str,
+    prompt_template: str,  # Add this parameter
 ) -> None:
     """Resolve github issues.
 
@@ -493,6 +489,7 @@ async def resolve_issues(
                     llm_config,
                     output_dir,
                     runtime_container_image,
+                    prompt_template,  # Pass prompt_template
                     bool(num_workers > 1),
                 ),
                 output_fp,
@@ -592,6 +589,12 @@ if __name__ == "__main__":
         default=None,
         help="LLM API key to use.",
     )
+    parser.add_argument(
+        "--prompt-file",
+        type=str,
+        default="github_resolver/prompts/resolver/basic.jinja",
+        help="Path to the prompt template file in Jinja format.",
+    )
     my_args = parser.parse_args()
 
     owner, repo = my_args.repo.split("/")
@@ -617,6 +620,10 @@ if __name__ == "__main__":
         api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
     )
 
+    # Read the prompt template
+    with open(my_args.prompt_file, 'r') as f:
+        prompt_template = f.read()
+
     asyncio.run(
         resolve_issues(
             owner=owner,
@@ -629,5 +636,6 @@ if __name__ == "__main__":
             num_workers=my_args.num_workers,
             output_dir=my_args.output_dir,
             llm_config=llm_config,
+            prompt_template=prompt_template,  # Pass the prompt template
         )
     )
