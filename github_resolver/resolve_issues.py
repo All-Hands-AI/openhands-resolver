@@ -3,7 +3,7 @@
 import asyncio
 import dataclasses
 import shutil
-from typing import Any
+from typing import Any, Awaitable, TextIO
 import requests
 import argparse
 import json
@@ -366,6 +366,21 @@ def download_issues_from_github(
     return converted_issues
 
 
+# This function tracks the progress AND write the output to a JSONL file
+async def update_progress(output: Awaitable[ResolverOutput], output_fp: TextIO, pbar: tqdm) -> None:
+    resolved_output = await output
+    pbar.update(1)
+    pbar.set_description(f'issue {resolved_output.issue.number}')
+    pbar.set_postfix_str(
+        f'Test Result: {resolved_output.metrics.get("test_result", "N/A") if resolved_output.metrics else "N/A"}'
+    )
+    logger.info(
+        f'Finished issue {resolved_output.issue.number}: {resolved_output.metrics.get("test_result", "N/A") if resolved_output.metrics else "N/A"}'
+    )
+    output_fp.write(resolved_output.model_dump_json() + "\n")
+    output_fp.flush()
+
+
 async def resolve_issues(
     owner: str,
     repo: str,
@@ -463,19 +478,6 @@ async def resolve_issues(
 
     pbar = tqdm(total=len(issues))
 
-    # This function tracks the progress AND write the output to a JSONL file
-    def update_progress(output):
-        pbar.update(1)
-        pbar.set_description(f'issue {output.issue.number}')
-        pbar.set_postfix_str(
-            f'Test Result: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
-        )
-        logger.info(
-            f'Finished issue {output.issue.number}: {output.metrics.get("test_result", "N/A") if output.metrics else "N/A"}'
-        )
-        output_fp.write(output.model_dump_json() + "\n")
-        output_fp.flush()
-
     # This sets the multi-processing
     logger.info(f"Using {num_workers} workers.")
 
@@ -483,14 +485,18 @@ async def resolve_issues(
         # Replace the ProcessPoolExecutor with asyncio.gather
         tasks = []
         for issue in issues:
-            task = process_issue(
-                issue,
-                base_commit,
-                max_iterations,
-                llm_config,
-                output_dir,
-                runtime_container_image,
-                bool(num_workers > 1),
+            task = update_progress(
+                process_issue(
+                    issue,
+                    base_commit,
+                    max_iterations,
+                    llm_config,
+                    output_dir,
+                    runtime_container_image,
+                    bool(num_workers > 1),
+                ),
+                output_fp,
+                pbar,
             )
             tasks.append(task)
 
@@ -501,10 +507,7 @@ async def resolve_issues(
             async with sem:
                 return await task
 
-        results = await asyncio.gather(*[run_with_semaphore(task) for task in tasks])
-
-        for result in results:
-            update_progress(result)
+        await asyncio.gather(*[run_with_semaphore(task) for task in tasks])
 
     except KeyboardInterrupt:
         print("KeyboardInterrupt received. Cleaning up...")
