@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 from github_resolver.send_pull_request import (
     apply_patch,
@@ -177,19 +177,17 @@ def test_initialize_repo(mock_output_dir):
         assert f.read() == "hello world"
 
 
+@pytest.mark.parametrize("pr_type", ["branch", "draft", "pr"])
 @patch('subprocess.run')
 @patch('requests.post')
 @patch('requests.get')
 def test_send_pull_request(
-    mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir
+    mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir, pr_type
 ):
     repo_path = os.path.join(mock_output_dir, "repo")
 
     # Mock API responses
-    mock_get.side_effect = [
-        MagicMock(json=lambda: {"default_branch": "main"}),
-        MagicMock(json=lambda: {"object": {"sha": "test-sha"}}),
-    ]
+    mock_get.return_value = MagicMock(json=lambda: {"default_branch": "main"})
     mock_post.return_value.json.return_value = {
         "html_url": "https://github.com/test-owner/test-repo/pull/1"
     }
@@ -206,32 +204,38 @@ def test_send_pull_request(
         github_token="test-token",
         github_username="test-user",
         patch_dir=repo_path,
+        pr_type=pr_type,
     )
 
     # Assert API calls
     assert mock_get.call_count == 1
-    assert mock_post.call_count == 1
-
-    # Assert subprocess.run calls
+    
+    # Check branch creation and push
     assert mock_run.call_count == 2
+    checkout_call, push_call = mock_run.call_args_list
 
-    # Check the git checkout -b command
-    checkout_call = mock_run.call_args_list[0]
-    assert checkout_call[0][0].startswith(
-        f"git -C {repo_path} checkout -b fix-issue-42"
+    assert checkout_call == call(
+        f"git -C {repo_path} checkout -b openhands-fix-issue-42",
+        shell=True, capture_output=True, text=True
     )
-    assert checkout_call[1] == {'shell': True, 'capture_output': True, 'text': True}
-
-    # Check the git push command
-    push_call = mock_run.call_args_list[1]
-    assert push_call[0][0].startswith(
-        f"git -C {repo_path} push "
-        "https://test-user:test-token@github.com/test-owner/test-repo.git fix-issue-42"
+    assert push_call == call(
+        f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git openhands-fix-issue-42",
+        shell=True, capture_output=True, text=True
     )
-    assert push_call[1] == {'shell': True, 'capture_output': True, 'text': True}
 
-    # Assert the result
-    assert result == "https://github.com/test-owner/test-repo/pull/1"
+    # Check PR creation based on pr_type
+    if pr_type == "branch":
+        assert result == "https://github.com/test-owner/test-repo/compare/openhands-fix-issue-42?expand=1"
+        mock_post.assert_not_called()
+    else:
+        assert result == "https://github.com/test-owner/test-repo/pull/1"
+        mock_post.assert_called_once()
+        post_data = mock_post.call_args[1]['json']
+        assert post_data['title'] == "Fix issue #42: Test Issue"
+        assert post_data['body'].startswith("This pull request fixes #42.")
+        assert post_data['head'] == "openhands-fix-issue-42"
+        assert post_data['base'] == "main"
+        assert post_data['draft'] == (pr_type == "draft")
 
 
 @patch('subprocess.run')
@@ -261,6 +265,7 @@ def test_send_pull_request_git_push_failure(
             github_token="test-token",
             github_username="test-user",
             patch_dir=repo_path,
+            pr_type="ready",
         )
 
     # Assert that subprocess.run was called twice
@@ -280,3 +285,39 @@ def test_send_pull_request_git_push_failure(
 
     # Assert that no pull request was created
     mock_post.assert_not_called()
+
+
+@patch('subprocess.run')
+@patch('requests.post')
+@patch('requests.get')
+def test_send_pull_request_permission_error(
+    mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir
+):
+    repo_path = os.path.join(mock_output_dir, "repo")
+
+    # Mock API responses
+    mock_get.return_value = MagicMock(json=lambda: {"default_branch": "main"})
+    mock_post.return_value.status_code = 403
+
+    # Mock subprocess.run calls
+    mock_run.side_effect = [
+        MagicMock(returncode=0),  # git checkout -b
+        MagicMock(returncode=0),  # git push
+    ]
+
+    # Test that RuntimeError is raised when PR creation fails due to permissions
+    with pytest.raises(
+        RuntimeError,
+        match="Failed to create pull request due to missing permissions."
+    ):
+        send_pull_request(
+            github_issue=mock_github_issue,
+            github_token="test-token",
+            github_username="test-user",
+            patch_dir=repo_path,
+            pr_type="pr",
+        )
+
+    # Assert that the branch was created and pushed
+    assert mock_run.call_count == 2
+    mock_post.assert_called_once()
