@@ -318,7 +318,7 @@ async def process_issue(
         raise RuntimeError("Failed to run the agent.")
 
     # Get git patch
-    return_val = await complete_runtime(runtime, base_commit, workspace_base)
+    return_val = await complete_runtime(runtime, base_commit)
     git_patch = return_val['git_patch']
     logger.info(
         f'Got git diff for instance {issue.number}:\n--------\n{git_patch}\n--------'
