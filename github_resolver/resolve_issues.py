@@ -3,7 +3,7 @@
 import asyncio
 import dataclasses
 import shutil
-from typing import Any, cast
+from typing import Any
 import requests
 import argparse
 import json
@@ -99,18 +99,18 @@ async def initialize_runtime(
 
     action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    if obs.exit_code != 0:
+    if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(
             f"Failed to change directory to /workspace. Exit code: {obs.exit_code}"
         )
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    if obs.exit_code != 0:
+    if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
 
@@ -131,32 +131,32 @@ async def complete_runtime(
 
     action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    if obs.exit_code != 0:
+    if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(
             f"Failed to change directory to /workspace. Exit code: {obs.exit_code}"
         )
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    if obs.exit_code != 0:
+    if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
     action = CmdRunAction(command='git config --global --add safe.directory /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    if obs.exit_code != 0:
+    if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
 
     action = CmdRunAction(command='git add -A')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = cast(CmdOutputObservation, await runtime.run_action(action))
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
-    if obs.exit_code != 0:
+    if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(f"Failed to git add. Exit code: {obs.exit_code}")
 
     n_retries = 0
@@ -168,7 +168,7 @@ async def complete_runtime(
         )
         action.timeout = 600 + 100 * n_retries
         logger.info(action, extra={'msg_type': 'ACTION'})
-        obs = cast(CmdOutputObservation, await runtime.run_action(action))
+        obs = await runtime.run_action(action)
         logger.info(obs, extra={'msg_type': 'OBSERVATION'})
         n_retries += 1
         if isinstance(obs, CmdOutputObservation):
