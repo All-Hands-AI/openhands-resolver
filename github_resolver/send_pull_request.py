@@ -244,11 +244,15 @@ if __name__ == "__main__":
     github_token = (
         my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
     )
+    if not github_token:
+        raise ValueError("Github token is not set, set via --github-token or GITHUB_TOKEN environment variable.")
     github_username = (
         my_args.github_username
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
+    if not github_username:
+        raise ValueError("Github username is not set, set via --github-username or GITHUB_USERNAME environment variable.") 
 
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
