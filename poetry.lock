@@ -4900,17 +4900,6 @@ files = [
 ]
 
 [[package]]
-name = "types-whatthepatch"
-version = "1.0.2.5"
-description = "Typing stubs for whatthepatch"
-optional = false
-python-versions = "*"
-files = [
-    {file = "types-whatthepatch-1.0.2.5.tar.gz", hash = "sha256:1cefe3348d6c5333e61945ccc35f486eef5443d2029764ebc953387196cca70a"},
-    {file = "types_whatthepatch-1.0.2.5-py3-none-any.whl", hash = "sha256:67ab2aa011e528ebc67bcdbc05fa826ac1be244c30a9878540a9121c23a32693"},
-]
-
-[[package]]
 name = "typing-extensions"
 version = "4.12.2"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -5089,17 +5078,6 @@ MarkupSafe = ">=2.1.1"
 
 [package.extras]
 watchdog = ["watchdog (>=2.3)"]
-
-[[package]]
-name = "whatthepatch"
-version = "1.0.6"
-description = "A patch parsing and application library."
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "whatthepatch-1.0.6-py3-none-any.whl", hash = "sha256:c0cee5975e9b5cad8a0d12a52d76f8bb567ccdec319cf08c5fcfb1efab7fa1b2"},
-    {file = "whatthepatch-1.0.6.tar.gz", hash = "sha256:b274b3294784f78b1e759b35b49b7ef2e8473a580aabf39e5b94a9f901e5de61"},
-]
 
 [[package]]
 name = "xlsxwriter"
@@ -5434,4 +5412,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "805887e73bde9c89ac60dedbeb7edceed9a71e8081eecbfe35b5d65377958f50"
+content-hash = "db86d47ef34e95a72099161a2f113c250480b4883c21aef8d8c53658140b4b79"
