@@ -1,0 +1,3 @@
+This is a Python repo based on the poetry package manager.
+- Setup: poetry install --with test --with dev
+- Testing: poetry run pytest tests/test_*.py
