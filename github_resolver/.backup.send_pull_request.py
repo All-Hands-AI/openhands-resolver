@@ -218,7 +218,7 @@ def process_single_issue(output_dir: str, issue_number: int, github_token: str, 
 
 def process_all_successful_issues(output_dir: str, github_token: str, github_username: str, pr_type: str, fork_owner: str | None) -> None:
     all_issues = load_resolver_output(os.path.join(output_dir, "output.jsonl"))
-    for issue_number in all_issues.issues.keys():
+    for issue_number, issue in all_issues.issues.items():
         resolver_output = load_resolver_output(os.path.join(output_dir, "output.jsonl"), issue_number)
         if resolver_output.resolution_successful:
             print(f"Processing issue {issue_number}")

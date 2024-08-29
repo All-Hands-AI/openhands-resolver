@@ -326,8 +326,11 @@ def test_send_pull_request_permission_error(
 
 
 @patch('github_resolver.send_pull_request.load_resolver_output')
-@patch('github_resolver.send_pull_request.process_single_issue')
-def test_process_all_successful_issues(mock_process_single_issue, mock_load_resolver_output):
+@patch('github_resolver.send_pull_request.initialize_repo')
+@patch('github_resolver.send_pull_request.apply_patch')
+@patch('github_resolver.send_pull_request.make_commit')
+@patch('github_resolver.send_pull_request.send_pull_request')
+def test_process_all_successful_issues(mock_send_pr, mock_make_commit, mock_apply_patch, mock_initialize_repo, mock_load_resolver_output):
     # Mock the load_resolver_output function to return different ResolverOutput objects
     mock_all_issues = MagicMock()
     mock_all_issues.issues = {1: MagicMock(), 2: MagicMock(), 3: MagicMock()}
@@ -348,6 +351,8 @@ def test_process_all_successful_issues(mock_process_single_issue, mock_load_reso
         mock_all_issues,
         mock_resolver_output_1,
         mock_resolver_output_2,
+        mock_resolver_output_3,
+        mock_resolver_output_1,
         mock_resolver_output_3
     ]
 
@@ -355,12 +360,15 @@ def test_process_all_successful_issues(mock_process_single_issue, mock_load_reso
     process_all_successful_issues("output_dir", "github_token", "github_username", "draft", None)
 
     # Assert that process_single_issue was called for successful issues only
-    assert mock_process_single_issue.call_count == 2
+    assert mock_initialize_repo.call_count == 2
+    assert mock_apply_patch.call_count == 2
+    assert mock_make_commit.call_count == 2
+    assert mock_send_pr.call_count == 2
 
     # Check that the function was called with the correct arguments for successful issues
-    mock_process_single_issue.assert_has_calls([
-        call("output_dir", 1, "github_token", "github_username", "draft", None),
-        call("output_dir", 3, "github_token", "github_username", "draft", None)
+    mock_initialize_repo.assert_has_calls([
+        call("output_dir", 1, mock_resolver_output_1.base_commit),
+        call("output_dir", 3, mock_resolver_output_3.base_commit)
     ])
 
     # Add more assertions as needed to verify the behavior of the function
