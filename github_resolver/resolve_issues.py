@@ -195,9 +195,10 @@ async def complete_runtime(
 def get_instruction(
     issue: GithubIssue,
     prompt_template: str,
+    repo_instruction: str | None = None,
 ):  # Prepare instruction
     template = jinja2.Template(prompt_template)
-    instruction = template.render(body=issue.body)
+    instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
     return instruction
 
 
@@ -237,7 +238,8 @@ async def process_issue(
     llm_config: LLMConfig,
     output_dir: str,
     runtime_container_image: str,
-    prompt_template: str,  # Add this parameter
+    prompt_template: str,
+    repo_instruction: str | None = None,
     reset_logger: bool = True,
 ) -> ResolverOutput:
 
@@ -275,7 +277,7 @@ async def process_issue(
     runtime = await create_runtime(config, sid=f"{issue.number}")
     await initialize_runtime(runtime)
 
-    instruction = get_instruction(issue, prompt_template)
+    instruction = get_instruction(issue, prompt_template, repo_instruction)
 
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     state: State | None = await run_controller(
@@ -388,6 +390,7 @@ async def resolve_issues(
     llm_config: LLMConfig,
     runtime_container_image: str,
     prompt_template: str,  # Add this parameter
+    repo_instruction: str | None,
 ) -> None:
     """Resolve github issues.
 
@@ -400,6 +403,8 @@ async def resolve_issues(
         limit_issues: Limit the number of issues to resolve.
         output_dir: Output directory to write the results.
         runtime_container_image: Container image to use.
+        prompt_template: Prompt template to use.
+        repo_instruction: Repository instruction to use.
     """
 
     # Load dataset
@@ -489,7 +494,8 @@ async def resolve_issues(
                     llm_config,
                     output_dir,
                     runtime_container_image,
-                    prompt_template,  # Pass prompt_template
+                    prompt_template,
+                    repo_instruction,
                     bool(num_workers > 1),
                 ),
                 output_fp,
@@ -595,6 +601,12 @@ if __name__ == "__main__":
         default="github_resolver/prompts/resolver/basic.jinja",
         help="Path to the prompt template file in Jinja format.",
     )
+    parser.add_argument(
+        "--repo-instruction-file",
+        type=str,
+        default=None,
+        help="Path to the repository instruction file in text format.",
+    )
     my_args = parser.parse_args()
 
     owner, repo = my_args.repo.split("/")
@@ -624,6 +636,10 @@ if __name__ == "__main__":
     with open(my_args.prompt_file, 'r') as f:
         prompt_template = f.read()
 
+    repo_instruction = None
+    with open(my_args.repo_instruction_file, 'r') as f:
+        repo_instruction = f.read()
+
     asyncio.run(
         resolve_issues(
             owner=owner,
@@ -637,5 +653,6 @@ if __name__ == "__main__":
             output_dir=my_args.output_dir,
             llm_config=llm_config,
             prompt_template=prompt_template,  # Pass the prompt template
+            repo_instruction=repo_instruction,
         )
     )
