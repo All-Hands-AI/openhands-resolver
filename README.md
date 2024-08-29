@@ -34,3 +34,11 @@ If you find any PRs that were successful, you can upload them.
 ```bash
 poetry run python github_resolver/send_pull_request.py --issue-number XXX
 ```
+
+## Visualizing Resolver Output
+
+If you want to visualize the resolver output, you can use the following command.
+
+```bash
+poetry run python github_resolver/visualize_resolver_output.py --issue-number XXX --vis-method json
+```

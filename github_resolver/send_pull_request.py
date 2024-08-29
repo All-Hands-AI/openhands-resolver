@@ -3,13 +3,13 @@ import os
 import shutil
 from github_resolver.github_issue import GithubIssue
 from github_resolver.io_utils import load_resolver_output
+from github_resolver.patching import parse_patch, apply_diff
 import requests
 import subprocess
-import whatthepatch
 
 
 def apply_patch(repo_dir: str, patch: str) -> None:
-    diffs = whatthepatch.parse_patch(patch)
+    diffs = parse_patch(patch)
 
     for diff in diffs:
         if not diff.header.new_path:
@@ -42,7 +42,7 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             newline = '\n'
             split_content = []
 
-        new_content = whatthepatch.apply_diff(diff, split_content)
+        new_content = apply_diff(diff, split_content)
 
         # Write the new content using the detected line endings
         with open(new_path, 'w', newline=newline) as f:
