@@ -174,7 +174,7 @@ def send_pull_request(
     # If we are not sending a PR, we can finish early and return the
     # URL for the user to open a PR manually
     if pr_type == "branch":
-        url = f"https://github.com/{github_issue.owner}/{github_issue.repo}/compare/{branch_name}?expand=1"
+        url = f"https://github.com/{push_owner}/{github_issue.repo}/compare/{branch_name}?expand=1"
     else:
         data = {
             "title": pr_title,
