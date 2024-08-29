@@ -253,7 +253,9 @@ async def process_issue(
     workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
     # Get the absolute path of the workspace base
     workspace_base = os.path.abspath(workspace_base)
-    # copy the repo to the workspace
+    # write the repo to the workspace
+    if os.path.exists(workspace_base):
+        shutil.rmtree(workspace_base)
     shutil.copytree(os.path.join(output_dir, "repo"), workspace_base)
 
     config = AppConfig(
@@ -425,16 +427,17 @@ async def resolve_issues(
     logger.info(f"Using output directory: {output_dir}")
 
     # checkout the repo
-    checkout_output = subprocess.check_output(
-        [
+    if not os.path.exists(os.path.join(output_dir, "repo")):
+        checkout_output = subprocess.check_output(
+            [
             "git",
             "clone",
             f"https://{username}:{token}@github.com/{owner}/{repo}",
             f"{output_dir}/repo",
         ]
-    ).decode("utf-8")
-    if "fatal" in checkout_output:
-        raise RuntimeError(f"Failed to clone repository: {checkout_output}")
+        ).decode("utf-8")
+        if "fatal" in checkout_output:
+            raise RuntimeError(f"Failed to clone repository: {checkout_output}")
 
     # get the commit id of current repo for reproducibility
     base_commit = (
@@ -453,8 +456,8 @@ async def resolve_issues(
     if os.path.exists(output_file):
         with open(output_file, "r") as f:
             for line in f:
-                data = json.loads(line)
-                finished_numbers.add(data["number"])
+                data = ResolverOutput.model_validate_json(line)
+                finished_numbers.add(data.issue.number)
         logger.warning(
             f"Output file {output_file} already exists. Loaded {len(finished_numbers)} finished issues."
         )
@@ -621,11 +624,6 @@ if __name__ == "__main__":
 
     if not token:
         raise ValueError("Github token is required.")
-
-    if os.path.exists(my_args.output_dir):
-        raise ValueError(
-            f"Output directory {my_args.output_dir} already exists, remove it or specify a different one."
-        )
 
     llm_config = LLMConfig(
         model=my_args.llm_model or os.environ["LLM_MODEL"],
