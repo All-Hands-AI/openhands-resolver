@@ -12,7 +12,6 @@ from openhands.core.logger import openhands_logger as logger
 from openhands.events.action import Action
 from openhands.events.action.message import MessageAction
 
-
 def codeact_user_response(
     state: State,
     encapsulate_solution: bool = False,

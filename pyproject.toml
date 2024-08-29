@@ -16,6 +16,7 @@ whatthepatch = "*"
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
 ruff = "*"
+black = "*"
 types-requests = "*"
 types-whatthepatch = "*"
 
