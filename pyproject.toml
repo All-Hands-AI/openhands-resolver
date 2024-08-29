@@ -12,6 +12,7 @@ include = ["poetry.lock"]
 python = "^3.11"
 openhands-ai = { git = "https://github.com/All-Hands-AI/openhands.git", rev = "main" }
 whatthepatch = "*"
+pygithub = "^2.4.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
