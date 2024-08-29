@@ -159,6 +159,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
         body="This is a test issue",
     )
     base_commit = "abcdef1234567890"
+    repo_instruction = "Resolve this repo"
     max_iterations = 5
     llm_config = LLMConfig(model="test_model", api_key="test_api_key")
     runtime_container_image = "test_image:latest"
@@ -199,6 +200,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
             mock_output_dir,
             runtime_container_image,
             mock_prompt_template,  # Add this argument
+            repo_instruction,
             reset_logger=False
         )
 
@@ -227,8 +229,66 @@ def test_get_instruction(mock_prompt_template):
         title="Test Issue",
         body="This is a test issue",
     )
-    instruction = get_instruction(issue, mock_prompt_template)
+    instruction = get_instruction(issue, mock_prompt_template, None)
     expected_instruction = "Issue: This is a test issue\n\nPlease fix this issue."
+    assert instruction == expected_instruction
+
+
+def test_file_instruction():
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=123,
+        title="Test Issue",
+        body="This is a test issue",
+    )
+    # load prompt from github_resolver/prompts/resolve/basic.jinja
+    with open("github_resolver/prompts/resolve/basic.jinja", "r") as f:
+        prompt = f.read()
+    instruction = get_instruction(issue, prompt, None)
+    expected_instruction = """Please fix the following issue for the repository in /workspace.
+An environment has been set up for you to start working. You may assume all necessary tools are installed.
+
+# Problem Statement
+This is a test issue
+
+IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
+You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
+
+When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
+    assert instruction == expected_instruction
+
+
+def test_file_instruction_with_repo_instruction():
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=123,
+        title="Test Issue",
+        body="This is a test issue",
+    )
+    # load prompt from github_resolver/prompts/resolve/basic.jinja
+    with open("github_resolver/prompts/resolve/basic.jinja", "r") as f:
+        prompt = f.read()
+    # load repo instruction from github_resolver/prompts/repo_instructions/all-hands-ai___github-resolver.txt
+    with open("github_resolver/prompts/repo_instructions/all-hands-ai___github-resolver.txt", "r") as f:
+        repo_instruction = f.read()
+    instruction = get_instruction(issue, prompt, repo_instruction)
+    expected_instruction = """Please fix the following issue for the repository in /workspace.
+An environment has been set up for you to start working. You may assume all necessary tools are installed.
+
+# Problem Statement
+This is a test issue
+
+IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
+You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
+
+Some basic information about this repository:
+This is a Python repo based on the poetry package manager.
+- Setup: poetry install --with test --with dev
+- Testing: poetry run pytest tests/test_*.py
+
+When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
     assert instruction == expected_instruction
 
 

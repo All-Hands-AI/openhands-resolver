@@ -195,7 +195,7 @@ async def complete_runtime(
 def get_instruction(
     issue: GithubIssue,
     prompt_template: str,
-    repo_instruction: str | None,
+    repo_instruction: str | None = None,
 ):  # Prepare instruction
     template = jinja2.Template(prompt_template)
     instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
@@ -239,7 +239,7 @@ async def process_issue(
     output_dir: str,
     runtime_container_image: str,
     prompt_template: str,
-    repo_instruction: str | None,
+    repo_instruction: str | None = None,
     reset_logger: bool = True,
 ) -> ResolverOutput:
 
