@@ -5,9 +5,10 @@ from unittest.mock import patch, MagicMock, call
 
 from github_resolver.send_pull_request import (
     apply_patch,
-    load_resolver_output,
+    load_single_resolver_output,
     initialize_repo,
     send_pull_request,
+    process_all_successful_issues,
 )
 from github_resolver.resolver_output import ResolverOutput, GithubIssue
 
@@ -38,11 +39,11 @@ def mock_github_issue():
     )
 
 
-def test_load_resolver_output():
+def test_load_single_resolver_output():
     mock_output_jsonl = 'tests/mock_output/output.jsonl'
 
     # Test loading an existing issue
-    resolver_output = load_resolver_output(mock_output_jsonl, 5)
+    resolver_output = load_single_resolver_output(mock_output_jsonl, 5)
     assert isinstance(resolver_output, ResolverOutput)
     assert resolver_output.issue.number == 5
     assert resolver_output.issue.title == "Add MIT license"
@@ -51,7 +52,7 @@ def test_load_resolver_output():
 
     # Test loading a non-existent issue
     with pytest.raises(ValueError):
-        load_resolver_output(mock_output_jsonl, 999)
+        load_single_resolver_output(mock_output_jsonl, 999)
 
 
 def test_apply_patch(mock_output_dir):
@@ -321,3 +322,64 @@ def test_send_pull_request_permission_error(
     # Assert that the branch was created and pushed
     assert mock_run.call_count == 2
     mock_post.assert_called_once()
+
+
+@patch('github_resolver.send_pull_request.load_all_resolver_outputs')
+@patch('github_resolver.send_pull_request.process_single_issue')
+def test_process_all_successful_issues(mock_process_single_issue, mock_load_all_resolver_outputs):
+    # Create ResolverOutput objects with properly initialized GithubIssue instances
+    resolver_output_1 = ResolverOutput(
+        issue=GithubIssue(owner="test-owner", repo="test-repo", number=1, title="Issue 1", body="Body 1"),
+        instruction="Test instruction 1",
+        base_commit="def456",
+        git_patch="Test patch 1",
+        history=[],
+        metrics={},
+        success=True,
+        success_explanation="Test success 1",
+        error=None
+    )
+    
+    resolver_output_2 = ResolverOutput(
+        issue=GithubIssue(owner="test-owner", repo="test-repo", number=2, title="Issue 2", body="Body 2"),
+        instruction="Test instruction 2",
+        base_commit="ghi789",
+        git_patch="Test patch 2",
+        history=[],
+        metrics={},
+        success=False,
+        success_explanation="",
+        error="Test error 2"
+    )
+    
+    resolver_output_3 = ResolverOutput(
+        issue=GithubIssue(owner="test-owner", repo="test-repo", number=3, title="Issue 3", body="Body 3"),
+        instruction="Test instruction 3",
+        base_commit="jkl012",
+        git_patch="Test patch 3",
+        history=[],
+        metrics={},
+        success=True,
+        success_explanation="Test success 3",
+        error=None
+    )
+    
+    mock_load_all_resolver_outputs.return_value = [
+        resolver_output_1,
+        resolver_output_2,
+        resolver_output_3
+    ]
+
+    # Call the function
+    process_all_successful_issues("output_dir", "github_token", "github_username", "draft", None)
+
+    # Assert that process_single_issue was called for successful issues only
+    assert mock_process_single_issue.call_count == 2
+
+    # Check that the function was called with the correct arguments for successful issues
+    mock_process_single_issue.assert_has_calls([
+        call("output_dir", resolver_output_1, "github_token", "github_username", "draft", None),
+        call("output_dir", resolver_output_3, "github_token", "github_username", "draft", None)
+    ])
+
+    # Add more assertions as needed to verify the behavior of the function
