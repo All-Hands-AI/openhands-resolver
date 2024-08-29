@@ -2,10 +2,15 @@ import argparse
 import os
 import shutil
 from github_resolver.github_issue import GithubIssue
-from github_resolver.io_utils import load_resolver_output
+from github_resolver.io_utils import (
+    load_all_resolver_outputs,
+    load_single_resolver_output,
+)
 from github_resolver.patching import parse_patch, apply_diff
 import requests
 import subprocess
+
+from github_resolver.resolver_output import ResolverOutput
 
 
 def apply_patch(repo_dir: str, patch: str) -> None:
@@ -17,35 +22,35 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             continue
 
         old_path = (
-            os.path.join(repo_dir, diff.header.old_path.lstrip('b/'))
-            if diff.header.old_path and diff.header.old_path != '/dev/null'
+            os.path.join(repo_dir, diff.header.old_path.lstrip("b/"))
+            if diff.header.old_path and diff.header.old_path != "/dev/null"
             else None
         )
-        new_path = os.path.join(repo_dir, diff.header.new_path.lstrip('b/'))
+        new_path = os.path.join(repo_dir, diff.header.new_path.lstrip("b/"))
 
         if old_path:
             # Open the file in binary mode to detect line endings
-            with open(old_path, 'rb') as f:
+            with open(old_path, "rb") as f:
                 original_content = f.read()
 
             # Detect line endings
-            if b'\r\n' in original_content:
-                newline = '\r\n'
-            elif b'\n' in original_content:
-                newline = '\n'
+            if b"\r\n" in original_content:
+                newline = "\r\n"
+            elif b"\n" in original_content:
+                newline = "\n"
             else:
                 newline = None  # Let Python decide
 
-            with open(old_path, 'r', newline=newline) as f:
+            with open(old_path, "r", newline=newline) as f:
                 split_content = [x.strip(newline) for x in f.readlines()]
         else:
-            newline = '\n'
+            newline = "\n"
             split_content = []
 
         new_content = apply_diff(diff, split_content)
 
         # Write the new content using the detected line endings
-        with open(new_path, 'w', newline=newline) as f:
+        with open(new_path, "w", newline=newline) as f:
             for line in new_content:
                 print(line, file=f)
 
@@ -108,7 +113,6 @@ def send_pull_request(
     pr_type: str,
     fork_owner: str | None = None,
 ) -> str:
-
     if pr_type not in ["branch", "draft", "ready"]:
         raise ValueError(f"Invalid pr_type: {pr_type}")
 
@@ -154,7 +158,6 @@ def send_pull_request(
         print(f"Error pushing changes\n{push_command}\n{result.stderr}")
         raise RuntimeError("Failed to push changes to the remote repository")
 
-
     pr_title = f"Fix issue #{github_issue.number}: {github_issue.title}"
     pr_body = (
         f"This pull request fixes #{github_issue.number}."
@@ -182,21 +185,25 @@ def send_pull_request(
         response.raise_for_status()
         pr_data = response.json()
 
-        url = pr_data['html_url']
+        url = pr_data["html_url"]
 
     print(f"{pr_type} created: {url}\n\n--- Title: {pr_title}\n\n--- Body:\n{pr_body}")
 
     return url
 
 
-def process_single_issue(output_dir: str, issue_number: int, github_token: str, github_username: str, pr_type: str, fork_owner: str | None) -> None:
-    resolver_output = load_resolver_output(
-        os.path.join(output_dir, "output.jsonl"),
-        issue_number,
-    )
-
-    if not resolver_output.issue.resolution_successful:
-        print(f"Issue {issue_number} was not successfully resolved. Skipping PR creation.")
+def process_single_issue(
+    output_dir: str,
+    resolver_output: ResolverOutput,
+    github_token: str,
+    github_username: str,
+    pr_type: str,
+    fork_owner: str | None,
+) -> None:
+    if not resolver_output.issue.success:
+        print(
+            f"Issue {issue_number} was not successfully resolved. Skipping PR creation."
+        )
         return
 
     patched_repo_dir = initialize_repo(
@@ -216,16 +223,29 @@ def process_single_issue(output_dir: str, issue_number: int, github_token: str, 
         fork_owner=fork_owner,
     )
 
-def process_all_successful_issues(output_dir: str, github_token: str, github_username: str, pr_type: str, fork_owner: str | None) -> None:
-    all_issues = load_resolver_output(os.path.join(output_dir, "output.jsonl"))
-    for issue_number in all_issues.issues.keys():
-        resolver_output = load_resolver_output(os.path.join(output_dir, "output.jsonl"), issue_number)
-        if resolver_output.resolution_successful:
-            print(f"Processing issue {issue_number}")
-            process_single_issue(output_dir, issue_number, github_token, github_username, pr_type, fork_owner)
+
+def process_all_successful_issues(
+    output_dir: str,
+    github_token: str,
+    github_username: str,
+    pr_type: str,
+    fork_owner: str | None,
+) -> None:
+    output_path = os.path.join(output_dir, "output.jsonl")
+    for resolver_output in load_all_resolver_outputs(output_path):
+        if resolver_output.success:
+            print(f"Processing issue {resolver_output.issue.number}")
+            process_single_issue(
+                output_dir,
+                resolver_output,
+                github_token,
+                github_username,
+                pr_type,
+                fork_owner,
+            )
+
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Send a pull request to Github.")
     parser.add_argument(
         "--github-token",
@@ -270,22 +290,41 @@ if __name__ == "__main__":
         my_args.github_token if my_args.github_token else os.getenv("GITHUB_TOKEN")
     )
     if not github_token:
-        raise ValueError("Github token is not set, set via --github-token or GITHUB_TOKEN environment variable.")
+        raise ValueError(
+            "Github token is not set, set via --github-token or GITHUB_TOKEN environment variable."
+        )
     github_username = (
         my_args.github_username
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
     if not github_username:
-        raise ValueError("Github username is not set, set via --github-username or GITHUB_USERNAME environment variable.") 
+        raise ValueError(
+            "Github username is not set, set via --github-username or GITHUB_USERNAME environment variable."
+        )
 
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
 
-    if my_args.issue_number == 'all_successful':
-        process_all_successful_issues(my_args.output_dir, github_token, github_username, my_args.pr_type, my_args.fork_owner)
+    if my_args.issue_number == "all_successful":
+        process_all_successful_issues(
+            my_args.output_dir,
+            github_token,
+            github_username,
+            my_args.pr_type,
+            my_args.fork_owner,
+        )
     else:
         if not my_args.issue_number.isdigit():
             raise ValueError(f"Issue number {my_args.issue_number} is not a number.")
         issue_number = int(my_args.issue_number)
-        process_single_issue(my_args.output_dir, issue_number, github_token, github_username, my_args.pr_type, my_args.fork_owner)
+        output_path = os.path.join(my_args.output_dir, "output.jsonl")
+        resolver_output = load_single_resolver_output(output_path, issue_number)
+        process_single_issue(
+            my_args.output_dir,
+            resolver_output,
+            github_token,
+            github_username,
+            my_args.pr_type,
+            my_args.fork_owner,
+        )
