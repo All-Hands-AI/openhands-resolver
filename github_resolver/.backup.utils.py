@@ -69,14 +69,6 @@ def cleanup():
 
 
 def prepare_dataset(dataset: pd.DataFrame, output_file: str, eval_n_limit: int):
-    class LogCapture:
-        def __init__(self):
-            self.messages = []
-        def info(self, message):
-            self.messages.append(message)
-    
-    log_capture = LogCapture()
-    
     assert (
         "instance_id" in dataset.columns
     ), (
@@ -84,33 +76,33 @@ def prepare_dataset(dataset: pd.DataFrame, output_file: str, eval_n_limit: int):
         "unique identifier for each instance and use it as the 'instance_id' column."
     )
     id_column = "instance_id"
-    log_capture.info(f"Writing evaluation output to {output_file}")
+    logger.info(f"Writing evaluation output to {output_file}")
     finished_ids = set()
     if os.path.exists(output_file):
         with open(output_file, "r") as f:
             for line in f:
                 data = json.loads(line)
                 finished_ids.add(data[id_column])
-        log_capture.info(
+        logger.info(
             f"Output file {output_file} already exists. Loaded "
             f"{len(finished_ids)} finished instances. Resuming from where we left off."
         )
 
     if eval_n_limit:
         dataset = dataset.head(eval_n_limit)
-        log_capture.info(f"Limiting evaluation to first {eval_n_limit} instances.")
+        logger.info(f"Limiting evaluation to first {eval_n_limit} instances.")
 
     new_dataset = [
         instance
         for _, instance in dataset.iterrows()
         if instance[id_column] not in finished_ids
     ]
-    log_capture.info(
+    logger.info(
         f"Finished instances: {len(finished_ids)}, "
         f"Remaining instances: {len(new_dataset)}"
     )
 
-    return pd.DataFrame(new_dataset), log_capture.messages
+    return pd.DataFrame(new_dataset)
 
 
 def reset_logger_for_multiprocessing(
