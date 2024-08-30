@@ -7,6 +7,7 @@ from github_resolver.send_pull_request import (
     apply_patch,
     load_single_resolver_output,
     initialize_repo,
+    process_single_issue,
     send_pull_request,
     process_all_successful_issues,
 )
@@ -40,7 +41,7 @@ def mock_github_issue():
 
 
 def test_load_single_resolver_output():
-    mock_output_jsonl = 'tests/mock_output/output.jsonl'
+    mock_output_jsonl = "tests/mock_output/output.jsonl"
 
     # Test loading an existing issue
     resolver_output = load_single_resolver_output(mock_output_jsonl, 5)
@@ -88,10 +89,10 @@ def test_apply_patch_preserves_line_endings(mock_output_dir):
     unix_file = os.path.join(mock_output_dir, "unix_style.txt")
     dos_file = os.path.join(mock_output_dir, "dos_style.txt")
 
-    with open(unix_file, "w", newline='\n') as f:
+    with open(unix_file, "w", newline="\n") as f:
         f.write("Line 1\nLine 2\nLine 3")
 
-    with open(dos_file, "w", newline='\r\n') as f:
+    with open(dos_file, "w", newline="\r\n") as f:
         f.write("Line 1\r\nLine 2\r\nLine 3")
 
     # Create patches for both files
@@ -130,13 +131,13 @@ index 9daeafb..b02def2 100644
         dos_content = f.read()
 
     assert (
-        b'\r\n' not in unix_content
+        b"\r\n" not in unix_content
     ), "Unix-style line endings were changed to DOS-style"
-    assert b'\r\n' in dos_content, "DOS-style line endings were changed to Unix-style"
+    assert b"\r\n" in dos_content, "DOS-style line endings were changed to Unix-style"
 
     # Check if content was updated correctly
-    assert unix_content.decode('utf-8').split('\n')[1] == "Updated Line 2"
-    assert dos_content.decode('utf-8').split('\r\n')[1] == "Updated Line 2"
+    assert unix_content.decode("utf-8").split("\n")[1] == "Updated Line 2"
+    assert dos_content.decode("utf-8").split("\r\n")[1] == "Updated Line 2"
 
 
 def test_apply_patch_with_dev_null(mock_output_dir):
@@ -179,9 +180,9 @@ def test_initialize_repo(mock_output_dir):
 
 
 @pytest.mark.parametrize("pr_type", ["branch", "draft", "ready"])
-@patch('subprocess.run')
-@patch('requests.post')
-@patch('requests.get')
+@patch("subprocess.run")
+@patch("requests.post")
+@patch("requests.get")
 def test_send_pull_request(
     mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir, pr_type
 ):
@@ -210,42 +211,48 @@ def test_send_pull_request(
 
     # Assert API calls
     assert mock_get.call_count == 1
-    
+
     # Check branch creation and push
     assert mock_run.call_count == 2
     checkout_call, push_call = mock_run.call_args_list
 
     assert checkout_call == call(
         f"git -C {repo_path} checkout -b openhands-fix-issue-42",
-        shell=True, capture_output=True, text=True
+        shell=True,
+        capture_output=True,
+        text=True,
     )
     assert push_call == call(
         f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git openhands-fix-issue-42",
-        shell=True, capture_output=True, text=True
+        shell=True,
+        capture_output=True,
+        text=True,
     )
 
     # Check PR creation based on pr_type
     if pr_type == "branch":
-        assert result == "https://github.com/test-owner/test-repo/compare/openhands-fix-issue-42?expand=1"
+        assert (
+            result
+            == "https://github.com/test-owner/test-repo/compare/openhands-fix-issue-42?expand=1"
+        )
         mock_post.assert_not_called()
     else:
         assert result == "https://github.com/test-owner/test-repo/pull/1"
         mock_post.assert_called_once()
-        post_data = mock_post.call_args[1]['json']
-        assert post_data['title'] == "Fix issue #42: Test Issue"
-        assert post_data['body'].startswith("This pull request fixes #42.")
-        assert post_data['head'] == "openhands-fix-issue-42"
-        assert post_data['base'] == "main"
-        assert post_data['draft'] == (pr_type == "draft")
+        post_data = mock_post.call_args[1]["json"]
+        assert post_data["title"] == "Fix issue #42: Test Issue"
+        assert post_data["body"].startswith("This pull request fixes #42.")
+        assert post_data["head"] == "openhands-fix-issue-42"
+        assert post_data["base"] == "main"
+        assert post_data["draft"] == (pr_type == "draft")
 
 
-@patch('subprocess.run')
-@patch('requests.post')
-@patch('requests.get')
+@patch("subprocess.run")
+@patch("requests.post")
+@patch("requests.get")
 def test_send_pull_request_git_push_failure(
     mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir
 ):
-
     repo_path = os.path.join(mock_output_dir, "repo")
 
     # Mock API responses
@@ -275,22 +282,22 @@ def test_send_pull_request_git_push_failure(
     # Check the git checkout -b command
     checkout_call = mock_run.call_args_list[0]
     assert checkout_call[0][0].startswith(f"git -C {repo_path} checkout -b")
-    assert checkout_call[1] == {'shell': True, 'capture_output': True, 'text': True}
+    assert checkout_call[1] == {"shell": True, "capture_output": True, "text": True}
 
     # Check the git push command
     push_call = mock_run.call_args_list[1]
     assert push_call[0][0].startswith(
         f"git -C {repo_path} push https://test-user:test-token@github.com/"
     )
-    assert push_call[1] == {'shell': True, 'capture_output': True, 'text': True}
+    assert push_call[1] == {"shell": True, "capture_output": True, "text": True}
 
     # Assert that no pull request was created
     mock_post.assert_not_called()
 
 
-@patch('subprocess.run')
-@patch('requests.post')
-@patch('requests.get')
+@patch("subprocess.run")
+@patch("requests.post")
+@patch("requests.get")
 def test_send_pull_request_permission_error(
     mock_get, mock_post, mock_run, mock_github_issue, mock_output_dir
 ):
@@ -308,8 +315,7 @@ def test_send_pull_request_permission_error(
 
     # Test that RuntimeError is raised when PR creation fails due to permissions
     with pytest.raises(
-        RuntimeError,
-        match="Failed to create pull request due to missing permissions."
+        RuntimeError, match="Failed to create pull request due to missing permissions."
     ):
         send_pull_request(
             github_issue=mock_github_issue,
@@ -324,12 +330,30 @@ def test_send_pull_request_permission_error(
     mock_post.assert_called_once()
 
 
-@patch('github_resolver.send_pull_request.load_all_resolver_outputs')
-@patch('github_resolver.send_pull_request.process_single_issue')
-def test_process_all_successful_issues(mock_process_single_issue, mock_load_all_resolver_outputs):
-    # Create ResolverOutput objects with properly initialized GithubIssue instances
-    resolver_output_1 = ResolverOutput(
-        issue=GithubIssue(owner="test-owner", repo="test-repo", number=1, title="Issue 1", body="Body 1"),
+@patch("github_resolver.send_pull_request.initialize_repo")
+@patch("github_resolver.send_pull_request.apply_patch")
+@patch("github_resolver.send_pull_request.send_pull_request")
+@patch("github_resolver.send_pull_request.make_commit")
+def test_process_single_issue(
+    mock_make_commit,
+    mock_send_pull_request,
+    mock_apply_patch,
+    mock_initialize_repo,
+    mock_output_dir,
+):
+    # Initialize test data
+    github_token = "test_token"
+    github_username = "test_user"
+    pr_type = "draft"
+
+    resolver_output = ResolverOutput(
+        issue=GithubIssue(
+            owner="test-owner",
+            repo="test-repo",
+            number=1,
+            title="Issue 1",
+            body="Body 1",
+        ),
         instruction="Test instruction 1",
         base_commit="def456",
         git_patch="Test patch 1",
@@ -337,11 +361,72 @@ def test_process_all_successful_issues(mock_process_single_issue, mock_load_all_
         metrics={},
         success=True,
         success_explanation="Test success 1",
-        error=None
+        error=None,
     )
-    
+
+    # Mock return value
+    mock_send_pull_request.return_value = (
+        "https://github.com/test-owner/test-repo/pull/1"
+    )
+    mock_initialize_repo.return_value = (
+        f"{mock_output_dir}/patches/issue_1"
+    )
+
+    # Call the function
+    result = process_single_issue(
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, None
+    )
+
+    # Assert that the mocked functions were called with correct arguments
+    mock_initialize_repo.assert_called_once_with(mock_output_dir, 1, "def456")
+    mock_apply_patch.assert_called_once_with(
+        f"{mock_output_dir}/patches/issue_1", resolver_output.git_patch
+    )
+    mock_make_commit.assert_called_once_with(
+        f"{mock_output_dir}/patches/issue_1", resolver_output.issue
+    )
+    mock_send_pull_request.assert_called_once_with(
+        github_issue=resolver_output.issue,
+        github_token=github_token,
+        github_username=github_username,
+        patch_dir=f"{mock_output_dir}/patches/issue_1",
+        pr_type=pr_type,
+        fork_owner=None,
+    )
+
+
+@patch("github_resolver.send_pull_request.load_all_resolver_outputs")
+@patch("github_resolver.send_pull_request.process_single_issue")
+def test_process_all_successful_issues(
+    mock_process_single_issue, mock_load_all_resolver_outputs
+):
+    # Create ResolverOutput objects with properly initialized GithubIssue instances
+    resolver_output_1 = ResolverOutput(
+        issue=GithubIssue(
+            owner="test-owner",
+            repo="test-repo",
+            number=1,
+            title="Issue 1",
+            body="Body 1",
+        ),
+        instruction="Test instruction 1",
+        base_commit="def456",
+        git_patch="Test patch 1",
+        history=[],
+        metrics={},
+        success=True,
+        success_explanation="Test success 1",
+        error=None,
+    )
+
     resolver_output_2 = ResolverOutput(
-        issue=GithubIssue(owner="test-owner", repo="test-repo", number=2, title="Issue 2", body="Body 2"),
+        issue=GithubIssue(
+            owner="test-owner",
+            repo="test-repo",
+            number=2,
+            title="Issue 2",
+            body="Body 2",
+        ),
         instruction="Test instruction 2",
         base_commit="ghi789",
         git_patch="Test patch 2",
@@ -349,11 +434,17 @@ def test_process_all_successful_issues(mock_process_single_issue, mock_load_all_
         metrics={},
         success=False,
         success_explanation="",
-        error="Test error 2"
+        error="Test error 2",
     )
-    
+
     resolver_output_3 = ResolverOutput(
-        issue=GithubIssue(owner="test-owner", repo="test-repo", number=3, title="Issue 3", body="Body 3"),
+        issue=GithubIssue(
+            owner="test-owner",
+            repo="test-repo",
+            number=3,
+            title="Issue 3",
+            body="Body 3",
+        ),
         instruction="Test instruction 3",
         base_commit="jkl012",
         git_patch="Test patch 3",
@@ -361,25 +452,43 @@ def test_process_all_successful_issues(mock_process_single_issue, mock_load_all_
         metrics={},
         success=True,
         success_explanation="Test success 3",
-        error=None
+        error=None,
     )
-    
+
     mock_load_all_resolver_outputs.return_value = [
         resolver_output_1,
         resolver_output_2,
-        resolver_output_3
+        resolver_output_3,
     ]
 
     # Call the function
-    process_all_successful_issues("output_dir", "github_token", "github_username", "draft", None)
+    process_all_successful_issues(
+        "output_dir", "github_token", "github_username", "draft", None
+    )
 
     # Assert that process_single_issue was called for successful issues only
     assert mock_process_single_issue.call_count == 2
 
     # Check that the function was called with the correct arguments for successful issues
-    mock_process_single_issue.assert_has_calls([
-        call("output_dir", resolver_output_1, "github_token", "github_username", "draft", None),
-        call("output_dir", resolver_output_3, "github_token", "github_username", "draft", None)
-    ])
+    mock_process_single_issue.assert_has_calls(
+        [
+            call(
+                "output_dir",
+                resolver_output_1,
+                "github_token",
+                "github_username",
+                "draft",
+                None,
+            ),
+            call(
+                "output_dir",
+                resolver_output_3,
+                "github_token",
+                "github_username",
+                "draft",
+                None,
+            ),
+        ]
+    )
 
     # Add more assertions as needed to verify the behavior of the function

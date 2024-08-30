@@ -200,7 +200,7 @@ def process_single_issue(
     pr_type: str,
     fork_owner: str | None,
 ) -> None:
-    if not resolver_output.issue.success:
+    if not resolver_output.success:
         print(
             f"Issue {issue_number} was not successfully resolved. Skipping PR creation."
         )
