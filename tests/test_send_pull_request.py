@@ -140,7 +140,7 @@ index 9daeafb..b02def2 100644
     assert dos_content.decode("utf-8").split("\r\n")[1] == "Updated Line 2"
 
 
-def test_apply_patch_with_dev_null(mock_output_dir):
+def test_apply_patch_create_new_file(mock_output_dir):
     # Create a patch that adds a new file
     patch_content = """
 diff --git a/new_file.txt b/new_file.txt
@@ -163,6 +163,30 @@ index 0000000..3b18e51
     with open(new_file_path, "r") as f:
         content = f.read().strip()
     assert content == "hello world", "File content is incorrect"
+
+
+def test_apply_patch_delete_file(mock_output_dir):
+    # Create a sample file in the mock repo
+    sample_file = os.path.join(mock_output_dir, "to_be_deleted.txt")
+    with open(sample_file, "w") as f:
+        f.write("This file will be deleted")
+
+    # Create a patch that deletes the file
+    patch_content = """
+diff --git a/to_be_deleted.txt b/to_be_deleted.txt
+deleted file mode 100644
+index 9daeafb..0000000
+--- a/to_be_deleted.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-This file will be deleted
+"""
+
+    # Apply the patch
+    apply_patch(mock_output_dir, patch_content)
+
+    # Check if the file was deleted
+    assert not os.path.exists(sample_file), "File was not deleted"
 
 
 def test_initialize_repo(mock_output_dir):
@@ -373,7 +397,7 @@ def test_process_single_issue(
     )
 
     # Call the function
-    result = process_single_issue(
+    process_single_issue(
         mock_output_dir, resolver_output, github_token, github_username, pr_type, None
     )
 
