@@ -28,6 +28,13 @@ def apply_patch(repo_dir: str, patch: str) -> None:
         )
         new_path = os.path.join(repo_dir, diff.header.new_path.lstrip("b/"))
 
+        # Check if the file is being deleted
+        if diff.header.new_path == "/dev/null":
+            if os.path.exists(old_path):
+                os.remove(old_path)
+                print(f"Deleted file: {old_path}")
+            continue
+
         if old_path:
             # Open the file in binary mode to detect line endings
             with open(old_path, "rb") as f:
@@ -48,6 +55,9 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             split_content = []
 
         new_content = apply_diff(diff, split_content)
+
+        # Ensure the directory exists before writing the file
+        os.makedirs(os.path.dirname(new_path), exist_ok=True)
 
         # Write the new content using the detected line endings
         with open(new_path, "w", newline=newline) as f:
