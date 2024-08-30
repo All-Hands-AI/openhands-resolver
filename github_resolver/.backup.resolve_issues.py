@@ -341,11 +341,7 @@ def download_issues_from_github(
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    params = {
-        "state": "open",
-        "filter": "all",
-    }
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers)
     response.raise_for_status()
 
     issues = response.json()
@@ -359,9 +355,6 @@ def download_issues_from_github(
             logger.warning(
                 f"Skipping issue {issue} as it is missing number, title, or body."
             )
-            continue
-        # Skip pull requests
-        if "pull_request" in issue:
             continue
         converted_issues.append(
             GithubIssue(
