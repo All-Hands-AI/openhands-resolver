@@ -215,7 +215,10 @@ Issue description:
 Last message from AI agent:
 {last_message}
 
-Has the issue been successfully resolved? Answer in JSON in the format {{success: bool, explanation: str}}."""
+(1) has the issue been successfully resolved?
+(2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
+
+Answer in JSON in the format {{success: bool, explanation: str}}."""
 
     response = completion(
         model=llm_config.model,
