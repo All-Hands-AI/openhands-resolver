@@ -366,6 +366,9 @@ def download_issues_from_github(
                 f"Skipping issue {issue} as it is missing number, title, or body."
             )
             continue
+        # Skip pull requests
+        if "pull_request" in issue:
+            continue
         converted_issues.append(
             GithubIssue(
                 owner=owner,
