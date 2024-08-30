@@ -360,7 +360,7 @@ def download_issues_from_github(
         all_issues.extend(issues)
         params["page"] += 1
     converted_issues = []
-    for issue in all_issues:
+    for issue in issues:
         if any([issue.get(key) is None for key in ["number", "title", "body"]]):
             logger.warning(
                 f"Skipping issue {issue} as it is missing number, title, or body."
