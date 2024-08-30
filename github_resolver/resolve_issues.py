@@ -341,20 +341,26 @@ def download_issues_from_github(
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    params = {
-        "state": "open",
-        "filter": "all",
-    }
-    response = requests.get(url, headers=headers, params=params)
-    response.raise_for_status()
+    params = {"state": "open", "per_page": 100, "page": 1}
+    all_issues = []
 
-    issues = response.json()
-    if not isinstance(issues, list) or any(
-        [not isinstance(issue, dict) for issue in issues]
-    ):
-        raise ValueError("Expected list of dictionaries from Github API.")
+    while True:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        issues = response.json()
+
+        if not issues:
+            break
+
+        if not isinstance(issues, list) or any(
+            [not isinstance(issue, dict) for issue in issues]
+        ):
+            raise ValueError("Expected list of dictionaries from Github API.")
+
+        all_issues.extend(issues)
+        params["page"] += 1
     converted_issues = []
-    for issue in issues:
+    for issue in all_issues:
         if any([issue.get(key) is None for key in ["number", "title", "body"]]):
             logger.warning(
                 f"Skipping issue {issue} as it is missing number, title, or body."
