@@ -109,13 +109,13 @@ async def test_initialize_runtime():
 @pytest.mark.asyncio
 async def test_download_issues_from_github():
     mock_response = MagicMock()
-    mock_response.json.return_values = [
+    mock_response.json.side_effect = [
         [
             {"number": 1, "title": "Issue 1", "body": "This is an issue"},
             {"number": 2, "title": "PR 1", "body": "This is a pull request", "pull_request": {}},
             {"number": 3, "title": "Issue 2", "body": "This is another issue"},
         ],
-        [],
+        None,
     ]
     mock_response.raise_for_status = MagicMock()
 

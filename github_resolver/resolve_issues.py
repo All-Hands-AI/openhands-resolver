@@ -349,13 +349,13 @@ def download_issues_from_github(
         response.raise_for_status()
         issues = response.json()
 
+        if not issues:
+            break
+
         if not isinstance(issues, list) or any(
             [not isinstance(issue, dict) for issue in issues]
         ):
             raise ValueError("Expected list of dictionaries from Github API.")
-
-        if not issues:
-            break
 
         all_issues.extend(issues)
         params["page"] += 1
