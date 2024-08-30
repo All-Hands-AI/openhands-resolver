@@ -285,8 +285,8 @@ You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 
 Some basic information about this repository:
 This is a Python repo based on the poetry package manager.
-- Setup: poetry install --with test --with dev
-- Testing: poetry run pytest tests/test_*.py
+- Setup: `poetry install --with test --with dev`
+- Testing: `poetry run pytest tests/test_*.py`
 
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
     assert instruction == expected_instruction
