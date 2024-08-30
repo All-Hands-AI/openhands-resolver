@@ -416,6 +416,7 @@ def test_process_single_issue(
         patch_dir=f"{mock_output_dir}/patches/issue_1",
         pr_type=pr_type,
         fork_owner=None,
+        additional_message=resolver_output.success_explanation,
     )
 
 
