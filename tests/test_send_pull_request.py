@@ -7,6 +7,7 @@ from github_resolver.send_pull_request import (
     apply_patch,
     load_single_resolver_output,
     initialize_repo,
+    process_single_issue,
     send_pull_request,
     process_all_successful_issues,
 )
@@ -322,6 +323,67 @@ def test_send_pull_request_permission_error(
     # Assert that the branch was created and pushed
     assert mock_run.call_count == 2
     mock_post.assert_called_once()
+
+
+@patch('github_resolver.send_pull_request.initialize_repo')
+@patch('github_resolver.send_pull_request.apply_patch')
+@patch('github_resolver.send_pull_request.send_pull_request')
+def test_process_single_issue(mock_send_pull_request, mock_apply_patch, mock_initialize_repo):
+    # Initialize test data
+    output_dir = "/tmp/test_output"
+    github_token = "test_token"
+    github_username = "test_user"
+    pr_type = "draft"
+    
+    resolver_output = ResolverOutput(
+        issue=GithubIssue(owner="test-owner", repo="test-repo", number=1, title="Issue 1", body="Body 1"),
+        instruction="Test instruction 1",
+        base_commit="def456",
+        git_patch="Test patch 1",
+        history=[],
+        metrics={},
+        success=True,
+        success_explanation="Test success 1",
+        error=None
+    )
+
+    # Mock return value for send_pull_request
+    mock_send_pull_request.return_value = "https://github.com/test-owner/test-repo/pull/1"
+
+    # Call the function
+    result = process_single_issue(output_dir, resolver_output, github_token, github_username, pr_type, None)
+
+    # Assert that the mocked functions were called with correct arguments
+    mock_initialize_repo.assert_called_once_with(output_dir, 1)
+    mock_apply_patch.assert_called_once_with(f"{output_dir}/patches/issue_1", "Test patch 1")
+    mock_send_pull_request.assert_called_once_with(
+        github_issue=resolver_output.issue,
+        github_token=github_token,
+        github_username=github_username,
+        patch_dir=f"{output_dir}/patches/issue_1",
+        pr_type=pr_type,
+        base_commit=None
+    )
+
+    # Assert the result
+    assert result == "https://github.com/test-owner/test-repo/pull/1"
+
+    # Test with base_commit provided
+    base_commit = "abc123"
+    result_with_base = process_single_issue(output_dir, resolver_output, github_token, github_username, pr_type, base_commit)
+
+    # Assert that send_pull_request was called with the provided base_commit
+    mock_send_pull_request.assert_called_with(
+        github_issue=resolver_output.issue,
+        github_token=github_token,
+        github_username=github_username,
+        patch_dir=f"{output_dir}/patches/issue_1",
+        pr_type=pr_type,
+        base_commit=base_commit
+    )
+
+    # Assert the result with base_commit
+    assert result_with_base == "https://github.com/test-owner/test-repo/pull/1"
 
 
 @patch('github_resolver.send_pull_request.load_all_resolver_outputs')
