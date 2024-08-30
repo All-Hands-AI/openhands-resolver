@@ -1,0 +1,4 @@
+This is a node repo for an RSS parser.
+- Setup: `npm install`
+- Testing: `npm test`
+- Writing Tests: Add to the `test` directory.
