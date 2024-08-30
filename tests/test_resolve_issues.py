@@ -10,6 +10,7 @@ from github_resolver.resolve_issues import (
     complete_runtime,
     get_instruction,
     process_issue,
+    download_issues_from_github,
 )
 from github_resolver.github_issue import GithubIssue
 from openhands.events.action import CmdRunAction
@@ -104,6 +105,24 @@ async def test_initialize_runtime():
         CmdRunAction(command='git config --global core.pager ""')
     )
 
+
+@pytest.mark.asyncio
+async def test_download_issues_from_github():
+    mock_response = MagicMock()
+    mock_response.json.return_value = [
+        {"number": 1, "title": "Issue 1", "body": "This is an issue"},
+        {"number": 2, "title": "PR 1", "body": "This is a pull request", "pull_request": {}},
+        {"number": 3, "title": "Issue 2", "body": "This is another issue"},
+    ]
+    mock_response.raise_for_status = MagicMock()
+
+    with patch('requests.get', return_value=mock_response):
+        issues = download_issues_from_github("owner", "repo", "token")
+
+    assert len(issues) == 2
+    assert all(isinstance(issue, GithubIssue) for issue in issues)
+    assert [issue.number for issue in issues] == [1, 3]
+    assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
 
 @pytest.mark.asyncio
 async def test_complete_runtime():
