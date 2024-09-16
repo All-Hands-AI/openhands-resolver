@@ -74,7 +74,7 @@ def test_create_git_patch(mock_subprocess, mock_os):
         mock_open.assert_called_once_with("/path/to/workspace/123.patch", "r")
 
 
-async def create_cmd_output(
+def create_cmd_output(
     exit_code: int, content: str, command_id: int, command: str
 ):
     return CmdOutputObservation(
@@ -82,8 +82,7 @@ async def create_cmd_output(
     )
 
 
-@pytest.mark.asyncio
-async def test_initialize_runtime():
+def test_initialize_runtime():
     mock_runtime = MagicMock()
     mock_runtime.run_action.side_effect = [
         create_cmd_output(
@@ -97,7 +96,7 @@ async def test_initialize_runtime():
         ),
     ]
 
-    await initialize_runtime(mock_runtime)
+    initialize_runtime(mock_runtime)
 
     assert mock_runtime.run_action.call_count == 2
     mock_runtime.run_action.assert_any_call(CmdRunAction(command="cd /workspace"))
@@ -106,8 +105,7 @@ async def test_initialize_runtime():
     )
 
 
-@pytest.mark.asyncio
-async def test_download_issues_from_github():
+def test_download_issues_from_github():
     mock_response = MagicMock()
     mock_response.json.side_effect = [
         [
