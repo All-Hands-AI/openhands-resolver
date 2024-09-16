@@ -268,7 +268,7 @@ async def process_issue(
         max_iterations=max_iterations,
         sandbox=SandboxConfig(
             runtime_container_image=runtime_container_image,
-            enable_auto_lint=True,
+            enable_auto_lint=False,
             use_host_network=False,
             # large enough timeout, since some testcases take very long to run
             timeout=300,
