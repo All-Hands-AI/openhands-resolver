@@ -86,7 +86,7 @@ def create_git_patch(
     return git_id, patch_content
 
 
-async def initialize_runtime(
+def initialize_runtime(
     runtime: Runtime,
 ):
     """Initialize the runtime for the agent.
@@ -101,7 +101,7 @@ async def initialize_runtime(
 
     action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(
@@ -110,7 +110,7 @@ async def initialize_runtime(
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config.\n{obs}")
@@ -129,37 +129,37 @@ async def complete_runtime(
     logger.info('-' * 30)
     logger.info('BEGIN Runtime Completion Fn')
     logger.info('-' * 30)
-    obs: CmdOutputObservation
+    obs: Observation
 
     action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(
-            f"Failed to change directory to /workspace. Exit code: {obs.exit_code}"
+            f"Failed to change directory to /workspace. Observation: {obs}"
         )
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
-        raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
+        raise RuntimeError(f"Failed to set git config. Observation: {obs}")
 
     action = CmdRunAction(command='git config --global --add safe.directory /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
-        raise RuntimeError(f"Failed to set git config. Exit code: {obs.exit_code}")
+        raise RuntimeError(f"Failed to set git config. Observation: {obs}")
 
     action = CmdRunAction(command='git add -A')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = await runtime.run_action(action)
+    obs = runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
-        raise RuntimeError(f"Failed to git add. Exit code: {obs.exit_code}")
+        raise RuntimeError(f"Failed to git add. Observation: {obs}")
 
     n_retries = 0
     git_patch = None
@@ -170,7 +170,7 @@ async def complete_runtime(
         )
         action.timeout = 600 + 100 * n_retries
         logger.info(action, extra={'msg_type': 'ACTION'})
-        obs = await runtime.run_action(action)
+        obs = runtime.run_action(action)
         logger.info(obs, extra={'msg_type': 'OBSERVATION'})
         n_retries += 1
         if isinstance(obs, CmdOutputObservation):
@@ -268,7 +268,7 @@ async def process_issue(
         max_iterations=max_iterations,
         sandbox=SandboxConfig(
             runtime_container_image=runtime_container_image,
-            enable_auto_lint=True,
+            enable_auto_lint=False,
             use_host_network=False,
             # large enough timeout, since some testcases take very long to run
             timeout=300,
@@ -279,8 +279,8 @@ async def process_issue(
     )
     config.set_llm_config(llm_config)
 
-    runtime = await create_runtime(config, sid=f"{issue.number}")
-    await initialize_runtime(runtime)
+    runtime = create_runtime(config, sid=f"{issue.number}")
+    initialize_runtime(runtime)
 
     instruction = get_instruction(issue, prompt_template, repo_instruction)
 
@@ -341,7 +341,7 @@ def download_issues_from_github(
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    params = {"state": "open", "per_page": 100, "page": 1}
+    params: dict[str, int | str] = {"state": "open", "per_page": 100, "page": 1}
     all_issues = []
 
     while True:
@@ -358,6 +358,7 @@ def download_issues_from_github(
             raise ValueError("Expected list of dictionaries from Github API.")
 
         all_issues.extend(issues)
+        assert isinstance(params["page"], int)
         params["page"] += 1
     converted_issues = []
     for issue in all_issues:

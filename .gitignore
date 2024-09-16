@@ -4,3 +4,4 @@ __pycache__
 output/
 .vscode
 archive/
+.mypy_cache
