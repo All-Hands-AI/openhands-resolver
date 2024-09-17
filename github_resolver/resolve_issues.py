@@ -564,7 +564,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--runtime-container-image",
         type=str,
-        default="ghcr.io/all-hands-ai/runtime:3626-merge-nikolaik",
+        default=None,
         help="Container image to use.",
     )
     parser.add_argument(
