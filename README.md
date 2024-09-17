@@ -16,18 +16,32 @@ First, make sure that you have `poetry`
 then install the github resolver package:
 
 ```bash
+git clone github.com/All-Hands-AI/github-resolver
+cd github-resolver
 poetry install
 ```
 
-If you don't have one already, create a github
-[fine-grained personal access token](https://github.com/settings/tokens)
+If you don't have one already, create a GitHub access token. You can use
+[this link](https://github.com/settings/tokens/new?description=openhands-issue-resolver&scopes=repo)
+to quickly generate a classic access token. Or, for additional security, you can
+[create a fine-grained token](https://github.com/settings/personal-access-tokens/new)
 that has "Content" and "Pull requests" scopes for the repository you
 want to resolve issues in. If you don't have push access to that repo,
-you can create a fork of the repo and use the fork. Then set the `GITHUB_TOKEN`
-environment variable to your fine-grained personal access token.
+you can create a fork of the repo and use the fork.
+
+Once you have your token set the `GITHUB_TOKEN` environment variable, e.g.
+```bash
+export GITHUB_TOKEN="your-secret-token"
+```
 
 You'll also need to have choose an `LLM_MODEL` and prepare an `LLM_API_KEY`,
-for which you can follow the OpenHands setup instructions.
+for which you can follow the OpenHands setup instructions. OpenHands works
+best with large, popular models like OpenAI's gpt-4o and Anthropic's Claude.
+
+```bash
+export LLM_MODEL="anthropic/claude-3-5-sonnet-20240620"
+export LLM_API_KEY="sk_test_12345"
+```
 
 ## Running the agent to resolve issues
 
