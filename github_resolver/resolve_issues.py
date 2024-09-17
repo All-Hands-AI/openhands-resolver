@@ -19,6 +19,7 @@ from litellm import completion
 
 from github_resolver.github_issue import GithubIssue
 from github_resolver.resolver_output import ResolverOutput
+import openhands
 from openhands.core.main import create_runtime, run_controller
 from openhands.controller.state.state import State
 from openhands.core.logger import openhands_logger as logger
@@ -223,7 +224,8 @@ Answer in JSON in the format {{success: bool, explanation: str}}."""
     response = completion(
         model=llm_config.model,
         messages=[{"role": "user", "content": prompt}],
-        api_key=llm_config.api_key
+        api_key=llm_config.api_key,
+        base_url=llm_config.base_url,
     )
     
     answer = response.choices[0].message.content.strip()
@@ -564,7 +566,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--runtime-container-image",
         type=str,
-        default="ghcr.io/all-hands-ai/runtime:3626-merge-nikolaik",
+        default=None,
         help="Container image to use.",
     )
     parser.add_argument(
@@ -616,9 +618,15 @@ if __name__ == "__main__":
         help="LLM API key to use.",
     )
     parser.add_argument(
+        "--llm-base-url",
+        type=str,
+        default=None,
+        help="LLM base URL to use.",
+    )
+    parser.add_argument(
         "--prompt-file",
         type=str,
-        default="github_resolver/prompts/resolver/basic.jinja",
+        default="github_resolver/prompts/resolver/basic-with-tests.jinja",
         help="Path to the prompt template file in Jinja format.",
     )
     parser.add_argument(
@@ -628,6 +636,10 @@ if __name__ == "__main__":
         help="Path to the repository instruction file in text format.",
     )
     my_args = parser.parse_args()
+
+    runtime_container_image = my_args.runtime_container_image
+    if runtime_container_image is None:
+        runtime_container_image = "ghcr.io/all-hands-ai/runtime:oh_v0.9.3_image_nikolaik_s_python-nodejs_tag_python3.11-nodejs22"
 
     owner, repo = my_args.repo.split("/")
     token = (
@@ -645,6 +657,7 @@ if __name__ == "__main__":
     llm_config = LLMConfig(
         model=my_args.llm_model or os.environ["LLM_MODEL"],
         api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
+        base_url=my_args.llm_base_url or os.environ["LLM_BASE_URL"],
     )
 
     # Read the prompt template
@@ -661,7 +674,7 @@ if __name__ == "__main__":
             repo=repo,
             token=token,
             username=username,
-            runtime_container_image=my_args.runtime_container_image,
+            runtime_container_image=runtime_container_image,
             max_iterations=my_args.max_iterations,
             limit_issues=my_args.limit_issues,
             num_workers=my_args.num_workers,

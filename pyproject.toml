@@ -7,6 +7,9 @@ license = "Proprietary"
 readme = "README.md"
 repository = "https://github.com/All-Hands-AI/github-resolver"
 include = ["poetry.lock"]
+packages = [
+    { include = "github_resolver" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
