@@ -224,7 +224,8 @@ Answer in JSON in the format {{success: bool, explanation: str}}."""
     response = completion(
         model=llm_config.model,
         messages=[{"role": "user", "content": prompt}],
-        api_key=llm_config.api_key
+        api_key=llm_config.api_key,
+        base_url=llm_config.base_url,
     )
     
     answer = response.choices[0].message.content.strip()
