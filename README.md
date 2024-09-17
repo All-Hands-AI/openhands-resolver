@@ -1,44 +1,79 @@
-# Github issue resolver
+# OpenHands Github Backlog Resolver 🙌
 
-This repo contains the code for the Github issue resolver agent.
+Do you have a bunch of open github issues that need to be resolved but no
+time to do it? What about asking an AI agent to do it for you instead?
+
+This tool allows you to do just that, point towards a github repository,
+and you can use open-source AI agents based on [OpenHands](https://github.com/all-hands-ai/openhands)
+to attempt to resolve issues for you.
+
+It's quite simple to get setup, just follow the instructions below.
 
 ## Setup
 
-First, setup OpenHands.
-Add the OpenHands repo to your `PYTHONPATH`
+First, make sure that you have `poetry`
+[installed](https://python-poetry.org/docs/#installing-with-the-official-installer),
+then install the github resolver package:
 
 ```bash
-export PYTHONPATH=$PYTHONPATH:/path/to/OpenHands
+poetry install
 ```
 
 If you don't have one already, create a github
 [fine-grained personal access token](https://github.com/settings/tokens)
 that has "Content" and "Pull requests" scopes for the repository you
-want to resolve issues in.
+want to resolve issues in. If you don't have push access to that repo,
+you can create a fork of the repo and use the fork. Then set the `GITHUB_TOKEN`
+environment variable to your fine-grained personal access token.
+
+You'll also need to have choose an `LLM_MODEL` and prepare an `LLM_API_KEY`,
+for which you can follow the OpenHands setup instructions.
 
 ## Running the agent to resolve issues
 
-Then run the following command to resolve issues in the `owner/repo` repository.
-The command should be run from the OpenHands repo
+Run the following command to resolve issues in the `[OWNER]/[REPO]` repository.
+For instance, if you want to resolve issues in this repo, you would run:
 
 ```bash
-poetry run python github_resolver/resolve_issues.py owner/repo
+poetry run python github_resolver/resolve_issues.py all-hands-ai/github-resolver
 ```
 
-The output will be written to `output/output.jsonl`.
+The output will be written to the `output/` directory.
 
-## Uploading successful PRs
+## Visualizing successful PRs
+
+To find successful PRs, you can run the following command:
+
+```bash
+grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*/\1/g'
+```
+
+Then you can go through and visualize the ones you'd like.
+
+```bash
+poetry run python github_resolver/visualize_resolver_output.py --issue-number ISSUE_NUMBER --vis-method json
+```
+
+## Uploading PRs
 
 If you find any PRs that were successful, you can upload them.
+There are three ways you can upload
+
+1. `branch` - upload a branch without creating a PR
+2. `draft` - create a draft PR
+3. `ready` - create a non-draft PR that's ready for review
 
 ```bash
-poetry run python github_resolver/send_pull_request.py --issue-number XXX
+poetry run python github_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
 ```
 
-## Visualizing Resolver Output
-
-If you want to visualize the resolver output, you can use the following command.
+If you want to upload to a fork, you can do so by specifying the `fork-owner`.
 
 ```bash
-poetry run python github_resolver/visualize_resolver_output.py --issue-number XXX --vis-method json
+poetry run python github_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
 ```
+
+## Troubleshooting
+
+If you have any issues, please open an issue on this github repo, we're happy
+to help! Alternatively, you can join the [OpenHands Slack workspace](https://join.slack.com/t/opendevin/shared_invite/zt-2oikve2hu-UDxHeo8nsE69y6T7yFX_BA) and ask there.
