@@ -35,7 +35,7 @@ Run the following command to resolve issues in the `[OWNER]/[REPO]` repository.
 For instance, if you want to resolve issues in this repo, you would run:
 
 ```bash
-poetry run python github_resolver/resolve_issues.py all-hands-ai/github-resolver
+poetry run python github_resolver/resolve_issues.py --repo all-hands-ai/github-resolver
 ```
 
 The output will be written to the `output/` directory.

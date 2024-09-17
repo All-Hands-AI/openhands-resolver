@@ -626,13 +626,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prompt-file",
         type=str,
-        default="github_resolver/prompts/resolver/basic-with-tests.jinja",
+        default="github_resolver/prompts/resolve/basic-with-tests.jinja",
         help="Path to the prompt template file in Jinja format.",
     )
     parser.add_argument(
         "--repo-instruction-file",
         type=str,
-        default=None,
+        default="",
         help="Path to the repository instruction file in text format.",
     )
     my_args = parser.parse_args()
@@ -657,7 +657,7 @@ if __name__ == "__main__":
     llm_config = LLMConfig(
         model=my_args.llm_model or os.environ["LLM_MODEL"],
         api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
-        base_url=my_args.llm_base_url or os.environ["LLM_BASE_URL"],
+        base_url=my_args.llm_base_url or os.environ.get("LLM_BASE_URL", None),
     )
 
     # Read the prompt template
@@ -665,8 +665,9 @@ if __name__ == "__main__":
         prompt_template = f.read()
 
     repo_instruction = None
-    with open(my_args.repo_instruction_file, 'r') as f:
-        repo_instruction = f.read()
+    if my_args.repo_instruction_file:
+        with open(my_args.repo_instruction_file, 'r') as f:
+            repo_instruction = f.read()
 
     asyncio.run(
         resolve_issues(

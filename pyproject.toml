@@ -14,6 +14,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.11"
 openhands-ai = "^0.9.3"
+pandas = "^2.2.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
