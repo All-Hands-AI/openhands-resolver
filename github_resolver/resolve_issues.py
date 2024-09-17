@@ -632,7 +632,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--repo-instruction-file",
         type=str,
-        default="",
+        default=None,
         help="Path to the repository instruction file in text format.",
     )
     my_args = parser.parse_args()
