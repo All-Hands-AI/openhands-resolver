@@ -617,6 +617,12 @@ if __name__ == "__main__":
         help="LLM API key to use.",
     )
     parser.add_argument(
+        "--llm-base-url",
+        type=str,
+        default=None,
+        help="LLM base URL to use.",
+    )
+    parser.add_argument(
         "--prompt-file",
         type=str,
         default="github_resolver/prompts/resolver/basic-with-tests.jinja",
@@ -650,6 +656,7 @@ if __name__ == "__main__":
     llm_config = LLMConfig(
         model=my_args.llm_model or os.environ["LLM_MODEL"],
         api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
+        base_url=my_args.llm_base_url or os.environ["LLM_BASE_URL"],
     )
 
     # Read the prompt template
