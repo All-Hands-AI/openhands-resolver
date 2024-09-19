@@ -412,6 +412,7 @@ async def resolve_issues(
     runtime_container_image: str,
     prompt_template: str,  # Add this parameter
     repo_instruction: str | None,
+    issue_numbers: list[int] | None,
 ) -> None:
     """Resolve github issues.
 
@@ -426,12 +427,16 @@ async def resolve_issues(
         runtime_container_image: Container image to use.
         prompt_template: Prompt template to use.
         repo_instruction: Repository instruction to use.
+        issue_numbers: List of issue numbers to resolve.
     """
 
     # Load dataset
     issues: list[GithubIssue] = download_issues_from_github(
         owner, repo, token
     )
+    if issue_numbers is not None:
+        issues = [issue for issue in issues if issue.number in issue_numbers]
+        logger.info(f"Limiting resolving to issues {issue_numbers}.")
     if limit_issues is not None:
         issues = issues[:limit_issues]
         logger.info(f"Limiting resolving to first {limit_issues} issues.")
@@ -588,6 +593,12 @@ if __name__ == "__main__":
         help="Limit the number of issues to resolve.",
     )
     parser.add_argument(
+        "--issue-numbers",
+        type=str,
+        default=None,
+        help="Comma separated list of issue numbers to resolve.",
+    )
+    parser.add_argument(
         "--num-workers",
         type=int,
         default=1,
@@ -669,6 +680,10 @@ if __name__ == "__main__":
         with open(my_args.repo_instruction_file, 'r') as f:
             repo_instruction = f.read()
 
+    issue_numbers = None
+    if my_args.issue_numbers:
+        issue_numbers = [int(number) for number in my_args.issue_numbers.split(",")]
+
     asyncio.run(
         resolve_issues(
             owner=owner,
@@ -683,5 +698,6 @@ if __name__ == "__main__":
             llm_config=llm_config,
             prompt_template=prompt_template,  # Pass the prompt template
             repo_instruction=repo_instruction,
+            issue_numbers=issue_numbers,
         )
     )

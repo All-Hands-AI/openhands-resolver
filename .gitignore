@@ -6,3 +6,4 @@ output/
 .vscode
 archive/
 .mypy_cache
+.DS_Store

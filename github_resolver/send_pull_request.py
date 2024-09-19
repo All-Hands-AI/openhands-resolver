@@ -54,6 +54,10 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             newline = "\n"
             split_content = []
 
+        if diff.changes is None:
+            print(f"Warning: No changes to apply for {old_path}")
+            continue
+
         new_content = apply_diff(diff, split_content)
 
         # Ensure the directory exists before writing the file
