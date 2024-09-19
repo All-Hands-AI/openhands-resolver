@@ -463,10 +463,11 @@ async def resolve_issues(
         if "fatal" in checkout_output:
             raise RuntimeError(f"Failed to clone repository: {checkout_output}")
 
+    print("checking output for repo:" + output_dir)
     # get the commit id of current repo for reproducibility
     base_commit = (
         subprocess.check_output(
-            ["cd", f"{output_dir}/repo", "&&", "git", "rev-parse", "HEAD"]
+            ["git", "rev-parse", "HEAD"], cwd=os.path.join(output_dir, "repo")
         )
         .decode("utf-8")
         .strip()
