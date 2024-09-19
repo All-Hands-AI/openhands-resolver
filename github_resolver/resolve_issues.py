@@ -466,7 +466,7 @@ async def resolve_issues(
     # get the commit id of current repo for reproducibility
     base_commit = (
         subprocess.check_output(
-            ["cd", f"{output_dir}/repo", "&&", "git", "rev-parse", "HEAD"]
+            ["git", "rev-parse", "HEAD"], cwd=os.path.join(output_dir, "repo")
         )
         .decode("utf-8")
         .strip()
