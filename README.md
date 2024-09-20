@@ -54,6 +54,13 @@ poetry run python github_resolver/resolve_issues.py --repo all-hands-ai/github-r
 
 The output will be written to the `output/` directory.
 
+Alternatively, if you only want to resolve a subset of the issues, you can specify a
+list of issues to resolve. For instance, if you want to resolve issues 100 and 101, you can run
+
+```bash
+poetry run python github_resolver/resolve_issues.py --repo all-hands-ai/github-resolver --issue-numbers 100,101
+```
+
 ## Visualizing successful PRs
 
 To find successful PRs, you can run the following command:
