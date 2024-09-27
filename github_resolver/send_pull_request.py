@@ -182,7 +182,7 @@ def send_pull_request(
     push_owner = fork_owner if fork_owner else github_issue.owner
     push_repo = github_issue.repo
 
-    username_and_token = f"{github_username}:{github_token}" if github_username else github_token
+    username_and_token = f"{github_username}:{github_token}" if github_username else f"x-auth-token:{github_token}"
     push_command = (
         f"git -C {patch_dir} push "
         f"https://{username_and_token}@github.com/"
