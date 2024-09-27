@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
@@ -27,6 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
         run: |
           python -c "
           import os
@@ -37,7 +38,8 @@ jobs:
           async def main():
               llm_config = LLMConfig(
                   model=os.environ['LLM_MODEL'],
-                  api_key=os.environ['LLM_API_KEY']
+                  api_key=os.environ['LLM_API_KEY'],
+                  base_url=os.environ.get('LLM_BASE_URL')
               )
               await resolve_issues(
                   owner='${{ github.repository_owner }}',
@@ -70,6 +72,9 @@ jobs:
         if: steps.check_result.outputs.RESOLUTION_SUCCESS == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
         run: |
           python -c "
           from github_resolver.send_pull_request import process_single_issue
@@ -79,7 +84,8 @@ jobs:
 
           llm_config = LLMConfig(
               model=os.environ['LLM_MODEL'],
-              api_key=os.environ['LLM_API_KEY']
+              api_key=os.environ['LLM_API_KEY'],
+              base_url=os.environ.get('LLM_BASE_URL')
           )
 
           output_path = 'output/output.jsonl'
