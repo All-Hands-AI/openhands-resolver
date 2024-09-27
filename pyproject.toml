@@ -19,6 +19,7 @@ packages = [
 python = "^3.11"
 openhands-ai = "^0.9.3"
 pandas = "^2.2.2"
+pytest = "^8.3.3"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
