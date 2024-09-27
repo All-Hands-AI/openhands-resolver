@@ -101,6 +101,25 @@ def initialize_repo(
 
 
 def make_commit(repo_dir: str, issue: GithubIssue) -> None:
+
+    # Check if git username is set
+    result = subprocess.run(
+        f"git -C {repo_dir} config user.name",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+    if not result.stdout.strip():
+        # If username is not set, configure git
+        subprocess.run(
+            f'git -C {repo_dir} config user.name "openhands" && '
+            f'git -C {repo_dir} config user.email "openhands@all-hands.dev" && '
+            f'git -C {repo_dir} config alias.git "git --no-pager"',
+            shell=True,
+            check=True,
+        )
+        print("Git user configured as openhands")
+
     result = subprocess.run(
         f"git -C {repo_dir} add .", shell=True, capture_output=True, text=True
     )
@@ -316,6 +335,7 @@ if __name__ == "__main__":
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
+    # Remove the check for github_username
     
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
