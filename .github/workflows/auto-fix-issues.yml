@@ -71,7 +71,7 @@ jobs:
           python -m github_resolver.send_pull_request \
             --issue-number ${{ github.event.issue.number }} \
             --pr-type draft | tee pr_result.txt && \
-            grep "draft created" pr_result.txt | sed 's/.*\//g' > pr_number.txt
+            grep "draft created" pr_result.txt | sed 's/.*\///g' > pr_number.txt
 
       - name: Comment on issue
         uses: actions/github-script@v6
