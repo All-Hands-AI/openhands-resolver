@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import re
 import shutil
 from typing import Any, Awaitable, TextIO
 import requests
@@ -219,7 +220,15 @@ Last message from AI agent:
 (1) has the issue been successfully resolved?
 (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
 
-Answer in JSON in the format {{success: bool, explanation: str}}."""
+Answer in JSON in the format below:
+
+```json
+{{
+    "success": true/false,
+    "explanation": "..."
+}}
+```
+"""
 
     response = completion(
         model=llm_config.model,
@@ -229,8 +238,13 @@ Answer in JSON in the format {{success: bool, explanation: str}}."""
     )
     
     answer = response.choices[0].message.content.strip()
+    pattern = r'```json\s*([\s\S]*?)\s*```'
+    match = re.search(pattern, answer)
     try:
-        json_answer = json.loads(answer)
+        if match:
+            json_answer = json.loads(match.group(1))
+        else:
+            json_answer = json.loads(answer)
         return json_answer['success'], json_answer['explanation']
     except json.JSONDecodeError:
         return False, f"Failed to decode JSON from LLM response: {answer}"
