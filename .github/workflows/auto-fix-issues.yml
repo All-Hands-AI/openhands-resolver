@@ -4,14 +4,15 @@ on:
   issues:
     types: [labeled]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   auto-fix:
     if: github.event.label.name == 'fix-me'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -69,7 +70,8 @@ jobs:
         run: |
           python -m github_resolver.send_pull_request \
             --issue-number ${{ github.event.issue.number }} \
-            --pr-type draft
+            --pr-type draft | tee pr_result.txt && \
+            grep "draft created" pr_result.txt | sed 's/.*\//g' > pr_number.txt
 
       - name: Comment on issue
         uses: actions/github-script@v6
