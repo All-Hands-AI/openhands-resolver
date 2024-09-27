@@ -8,6 +8,9 @@ jobs:
   auto-fix:
     if: github.event.label.name == 'fix-me'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
