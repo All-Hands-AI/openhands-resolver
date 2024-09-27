@@ -316,7 +316,6 @@ if __name__ == "__main__":
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
-    # Remove the check for github_username
     
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
