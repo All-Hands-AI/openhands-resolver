@@ -1,0 +1,128 @@
+name: Auto-Fix Tagged Issues
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  auto-fix:
+    if: github.event.label.name == 'fix-me'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install git+https://github.com/all-hands-ai/github-resolver.git
+
+      - name: Attempt to resolve issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+        run: |
+          python -c "
+          import os
+          import asyncio
+          from github_resolver.resolve_issues import resolve_issues
+          from openhands.core.config import LLMConfig
+
+          async def main():
+              llm_config = LLMConfig(
+                  model=os.environ['LLM_MODEL'],
+                  api_key=os.environ['LLM_API_KEY'],
+                  base_url=os.environ.get('LLM_BASE_URL')
+              )
+              await resolve_issues(
+                  owner='${{ github.repository_owner }}',
+                  repo='${{ github.repository }}'.split('/')[1],
+                  token=os.environ['GITHUB_TOKEN'],
+                  username='github-actions[bot]',
+                  max_iterations=30,
+                  limit_issues=1,
+                  num_workers=1,
+                  output_dir='output',
+                  llm_config=llm_config,
+                  runtime_container_image='ghcr.io/all-hands-ai/runtime:oh_v0.9.3_image_nikolaik_s_python-nodejs_tag_python3.11-nodejs22',
+                  prompt_template='Please fix the following issue for the repository in /workspace.',
+                  issue_numbers=[${{ github.event.issue.number }}]
+              )
+
+          asyncio.run(main())
+          "
+
+      - name: Check resolution result
+        id: check_result
+        run: |
+          if grep -q '"success":true' output/output.jsonl; then
+            echo "RESOLUTION_SUCCESS=true" >> $GITHUB_OUTPUT
+          else
+            echo "RESOLUTION_SUCCESS=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create draft PR if successful
+        if: steps.check_result.outputs.RESOLUTION_SUCCESS == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+        run: |
+          python -c "
+          from github_resolver.send_pull_request import process_single_issue
+          from github_resolver.io_utils import load_single_resolver_output
+          from openhands.core.config import LLMConfig
+          import os
+
+          llm_config = LLMConfig(
+              model=os.environ['LLM_MODEL'],
+              api_key=os.environ['LLM_API_KEY'],
+              base_url=os.environ.get('LLM_BASE_URL')
+          )
+
+          output_path = 'output/output.jsonl'
+          resolver_output = load_single_resolver_output(output_path, ${{ github.event.issue.number }})
+
+          process_single_issue(
+              'output',
+              resolver_output,
+              os.environ['GITHUB_TOKEN'],
+              'github-actions[bot]',
+              'draft',
+              None
+          )
+          "
+
+      - name: Comment on issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const issueNumber = context.issue.number;
+            const success = ${{ steps.check_result.outputs.RESOLUTION_SUCCESS }};
+            
+            if (success) {
+              const prNumber = fs.readFileSync('pr_number.txt', 'utf8').trim();
+              github.rest.issues.createComment({
+                issue_number: issueNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `A potential fix has been generated and a draft PR #${prNumber} has been created. Please review the changes.`
+              });
+            } else {
+              github.rest.issues.createComment({
+                issue_number: issueNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: 'An attempt was made to automatically fix this issue, but it was unsuccessful. Manual intervention may be required.'
+              });
+            }
