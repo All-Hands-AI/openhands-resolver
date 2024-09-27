@@ -122,7 +122,7 @@ def make_commit(repo_dir: str, issue: GithubIssue) -> None:
 def send_pull_request(
     github_issue: GithubIssue,
     github_token: str,
-    github_username: str,
+    github_username: str | None,
     patch_dir: str,
     pr_type: str,
     fork_owner: str | None = None,
@@ -163,9 +163,10 @@ def send_pull_request(
     push_owner = fork_owner if fork_owner else github_issue.owner
     push_repo = github_issue.repo
 
+    username_and_token = f"{github_username}:{github_token}" if github_username else github_token
     push_command = (
         f"git -C {patch_dir} push "
-        f"https://{github_username}:{github_token}@github.com/"
+        f"https://{username_and_token}@github.com/"
         f"{push_owner}/{push_repo}.git {branch_name}"
     )
     result = subprocess.run(push_command, shell=True, capture_output=True, text=True)
@@ -315,11 +316,7 @@ if __name__ == "__main__":
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
-    if not github_username:
-        raise ValueError(
-            "Github username is not set, set via --github-username or GITHUB_USERNAME environment variable."
-        )
-
+    
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
 
