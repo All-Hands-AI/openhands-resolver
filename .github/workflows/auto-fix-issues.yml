@@ -17,6 +17,18 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Comment on issue with start message
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `OpenHands started fixing the issue! You can monitor the progress [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`
+            });
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
