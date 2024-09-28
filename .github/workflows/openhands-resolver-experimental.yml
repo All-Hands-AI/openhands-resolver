@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   auto-fix:
-    if: github.event.label.name == 'fix-me'
+    if: github.event.label.name == 'fix-me-experimental'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openhands-resolver
+          pip install git+https://github.com/all-hands-ai/openhands-resolver.git
 
       - name: Attempt to resolve issue
         env:
