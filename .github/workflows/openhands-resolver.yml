@@ -98,7 +98,13 @@ jobs:
                 body: `A potential fix has been generated and a draft PR #${prNumber} has been created. Please review the changes.`
               });
             } else {
-              const branchName = fs.readFileSync('branch_name.txt', 'utf8').trim();
+              let branchName = '';
+              try {
+                branchName = fs.readFileSync('branch_name.txt', 'utf8').trim();
+              } catch (error) {
+                console.error('Error reading branch_name.txt:', error);
+                branchName = 'unknown';
+              }
               github.rest.issues.createComment({
                 issue_number: issueNumber,
                 owner: context.repo.owner,
