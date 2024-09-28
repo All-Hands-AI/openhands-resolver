@@ -3,7 +3,7 @@ import tempfile
 import pytest
 
 
-from unittest.mock import AsyncMock, patch, MagicMock, mock_open
+from unittest.mock import AsyncMock, patch, MagicMock
 from openhands_resolver.resolve_issues import (
     create_git_patch,
     initialize_runtime,
@@ -315,41 +315,3 @@ When you think you have fixed the issue through code changes, please run the fol
 
 if __name__ == "__main__":
     pytest.main()
-
-
-@pytest.fixture
-def mock_workspace_dir():
-    with tempfile.TemporaryDirectory() as temp_dir:
-        yield temp_dir
-
-def test_repo_instruction_file(mock_workspace_dir):
-    # Create a mock .openhands_instructions file
-    instructions_content = "These are the repository instructions."
-    instructions_path = os.path.join(mock_workspace_dir, '.openhands_instructions')
-    with open(instructions_path, 'w') as f:
-        f.write(instructions_content)
-
-    # Mock the necessary parts of the resolve_issues function
-    with patch('openhands_resolver.resolve_issues.os.path.join', side_effect=os.path.join),          patch('openhands_resolver.resolve_issues.os.path.exists', return_value=True),          patch('builtins.open', new_callable=mock_open, read_data=instructions_content):
-
-        # Import the function we want to test
-        from openhands_resolver.resolve_issues import resolve_issues
-
-        # Create a mock ArgumentParser object
-        mock_args = MagicMock()
-        mock_args.workspace_dir = mock_workspace_dir
-        mock_args.repo_instruction_file = None
-
-        # Call the part of the function we want to test
-        repo_instruction = None
-        if mock_args.repo_instruction_file:
-            with open(mock_args.repo_instruction_file, 'r') as f:
-                repo_instruction = f.read()
-        else:
-            openhands_instructions_path = os.path.join(mock_args.workspace_dir, '.openhands_instructions')
-            if os.path.exists(openhands_instructions_path):
-                with open(openhands_instructions_path, 'r') as f:
-                    repo_instruction = f.read()
-
-        # Assert that the repo_instruction was read correctly
-        assert repo_instruction == instructions_content

@@ -465,7 +465,8 @@ async def resolve_issues(
     logger.info(f"Using output directory: {output_dir}")
 
     # checkout the repo
-    if not os.path.exists(os.path.join(output_dir, "repo")):
+    repo_dir = os.path.join(output_dir, "repo")
+    if not os.path.exists(repo_dir):
         checkout_output = subprocess.check_output(
             [
             "git",
@@ -480,12 +481,19 @@ async def resolve_issues(
     # get the commit id of current repo for reproducibility
     base_commit = (
         subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=os.path.join(output_dir, "repo")
+            ["git", "rev-parse", "HEAD"], cwd=repo_dir
         )
         .decode("utf-8")
         .strip()
     )
     logger.info(f"Base commit: {base_commit}")
+
+    if repo_instruction is None:
+        # Check for .openhands_instructions file in the workspace directory
+        openhands_instructions_path = os.path.join(repo_dir, '.openhands_instructions')
+        if os.path.exists(openhands_instructions_path):
+            with open(openhands_instructions_path, 'r') as f:
+                repo_instruction = f.read()
 
     # OUTPUT FILE
     output_file = os.path.join(output_dir, "output.jsonl")
@@ -619,12 +627,6 @@ if __name__ == "__main__":
         help="Number of workers to use.",
     )
     parser.add_argument(
-        "--workspace-dir",
-        type=str,
-        default="workspace",
-        help="Workspace directory to use.",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default="output",
@@ -696,12 +698,6 @@ if __name__ == "__main__":
     if my_args.repo_instruction_file:
         with open(my_args.repo_instruction_file, 'r') as f:
             repo_instruction = f.read()
-    else:
-        # Check for .openhands_instructions file in the workspace directory
-        openhands_instructions_path = os.path.join(my_args.workspace_dir, '.openhands_instructions')
-        if os.path.exists(openhands_instructions_path):
-            with open(openhands_instructions_path, 'r') as f:
-                repo_instruction = f.read()
 
     issue_numbers = None
     if my_args.issue_numbers:
