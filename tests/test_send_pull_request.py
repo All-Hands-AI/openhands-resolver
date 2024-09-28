@@ -398,7 +398,7 @@ def test_process_single_issue(
 
     # Call the function
     process_single_issue(
-        mock_output_dir, resolver_output, github_token, github_username, pr_type, None
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, None, False
     )
 
     # Assert that the mocked functions were called with correct arguments
@@ -504,6 +504,7 @@ def test_process_all_successful_issues(
                 "github_username",
                 "draft",
                 None,
+                False,
             ),
             call(
                 "output_dir",
@@ -512,6 +513,7 @@ def test_process_all_successful_issues(
                 "github_username",
                 "draft",
                 None,
+                False,
             ),
         ]
     )
