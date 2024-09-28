@@ -304,7 +304,8 @@ IMPORTANT: You should ONLY interact with the environment provided to you AND NEV
 You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 
 Some basic information about this repository:
-This is a Python repo based on the poetry package manager.
+This is a Python repo for openhands-resolver, a library that attempts to resolve github issues with the AI agent OpenHands.
+
 - Setup: `poetry install --with test --with dev`
 - Testing: `poetry run pytest tests/test_*.py`
 
