@@ -285,7 +285,7 @@ def process_all_successful_issues(
             )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Send a pull request to Github.")
     parser.add_argument(
         "--github-token",
@@ -372,3 +372,6 @@ if __name__ == "__main__":
             my_args.fork_owner,
             my_args.send_on_failure,
         )
+
+if __name__ == "__main__":
+    main()
