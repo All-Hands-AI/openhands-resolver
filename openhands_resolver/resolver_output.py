@@ -1,6 +1,6 @@
 from typing import Any
 from litellm import BaseModel
-from github_resolver.github_issue import GithubIssue
+from openhands_resolver.github_issue import GithubIssue
 
 
 class ResolverOutput(BaseModel):

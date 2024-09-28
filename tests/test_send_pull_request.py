@@ -3,7 +3,7 @@ import tempfile
 import pytest
 from unittest.mock import patch, MagicMock, call
 
-from github_resolver.send_pull_request import (
+from openhands_resolver.send_pull_request import (
     apply_patch,
     load_single_resolver_output,
     initialize_repo,
@@ -11,7 +11,7 @@ from github_resolver.send_pull_request import (
     send_pull_request,
     process_all_successful_issues,
 )
-from github_resolver.resolver_output import ResolverOutput, GithubIssue
+from openhands_resolver.resolver_output import ResolverOutput, GithubIssue
 
 
 @pytest.fixture
@@ -354,10 +354,10 @@ def test_send_pull_request_permission_error(
     mock_post.assert_called_once()
 
 
-@patch("github_resolver.send_pull_request.initialize_repo")
-@patch("github_resolver.send_pull_request.apply_patch")
-@patch("github_resolver.send_pull_request.send_pull_request")
-@patch("github_resolver.send_pull_request.make_commit")
+@patch("openhands_resolver.send_pull_request.initialize_repo")
+@patch("openhands_resolver.send_pull_request.apply_patch")
+@patch("openhands_resolver.send_pull_request.send_pull_request")
+@patch("openhands_resolver.send_pull_request.make_commit")
 def test_process_single_issue(
     mock_make_commit,
     mock_send_pull_request,
@@ -420,8 +420,8 @@ def test_process_single_issue(
     )
 
 
-@patch("github_resolver.send_pull_request.load_all_resolver_outputs")
-@patch("github_resolver.send_pull_request.process_single_issue")
+@patch("openhands_resolver.send_pull_request.load_all_resolver_outputs")
+@patch("openhands_resolver.send_pull_request.process_single_issue")
 def test_process_all_successful_issues(
     mock_process_single_issue, mock_load_all_resolver_outputs
 ):

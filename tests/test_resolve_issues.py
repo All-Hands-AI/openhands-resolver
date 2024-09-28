@@ -4,7 +4,7 @@ import pytest
 
 
 from unittest.mock import AsyncMock, patch, MagicMock, mock_open
-from github_resolver.resolve_issues import (
+from openhands_resolver.resolve_issues import (
     create_git_patch,
     initialize_runtime,
     complete_runtime,
@@ -12,10 +12,10 @@ from github_resolver.resolve_issues import (
     process_issue,
     download_issues_from_github,
 )
-from github_resolver.github_issue import GithubIssue
+from openhands_resolver.github_issue import GithubIssue
 from openhands.events.action import CmdRunAction
 from openhands.events.observation import CmdOutputObservation, NullObservation
-from github_resolver.resolver_output import ResolverOutput
+from openhands_resolver.resolver_output import ResolverOutput
 from openhands.core.config import LLMConfig
 
 
@@ -198,17 +198,17 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
 
     # Patch the necessary functions
     with patch(
-        "github_resolver.resolve_issues.create_runtime", mock_create_runtime
+        "openhands_resolver.resolve_issues.create_runtime", mock_create_runtime
     ), patch(
-        "github_resolver.resolve_issues.initialize_runtime", mock_initialize_runtime
+        "openhands_resolver.resolve_issues.initialize_runtime", mock_initialize_runtime
     ), patch(
-        "github_resolver.resolve_issues.run_controller", mock_run_controller
+        "openhands_resolver.resolve_issues.run_controller", mock_run_controller
     ), patch(
-        "github_resolver.resolve_issues.complete_runtime", mock_complete_runtime
+        "openhands_resolver.resolve_issues.complete_runtime", mock_complete_runtime
     ), patch(
-        "github_resolver.resolve_issues.guess_success", mock_guess_success
+        "openhands_resolver.resolve_issues.guess_success", mock_guess_success
     ), patch(
-        "github_resolver.resolve_issues.logger"
+        "openhands_resolver.resolve_issues.logger"
     ):
 
         # Call the function
@@ -262,8 +262,8 @@ def test_file_instruction():
         title="Test Issue",
         body="This is a test issue",
     )
-    # load prompt from github_resolver/prompts/resolve/basic.jinja
-    with open("github_resolver/prompts/resolve/basic.jinja", "r") as f:
+    # load prompt from openhands_resolver/prompts/resolve/basic.jinja
+    with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
         prompt = f.read()
     instruction = get_instruction(issue, prompt, None)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
@@ -287,11 +287,11 @@ def test_file_instruction_with_repo_instruction():
         title="Test Issue",
         body="This is a test issue",
     )
-    # load prompt from github_resolver/prompts/resolve/basic.jinja
-    with open("github_resolver/prompts/resolve/basic.jinja", "r") as f:
+    # load prompt from openhands_resolver/prompts/resolve/basic.jinja
+    with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
         prompt = f.read()
-    # load repo instruction from github_resolver/prompts/repo_instructions/all-hands-ai___github-resolver.txt
-    with open("github_resolver/prompts/repo_instructions/all-hands-ai___github-resolver.txt", "r") as f:
+    # load repo instruction from openhands_resolver/prompts/repo_instructions/all-hands-ai___openhands-resolver.txt
+    with open("openhands_resolver/prompts/repo_instructions/all-hands-ai___openhands-resolver.txt", "r") as f:
         repo_instruction = f.read()
     instruction = get_instruction(issue, prompt, repo_instruction)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
@@ -329,10 +329,10 @@ def test_repo_instruction_file(mock_workspace_dir):
         f.write(instructions_content)
 
     # Mock the necessary parts of the resolve_issues function
-    with patch('github_resolver.resolve_issues.os.path.join', side_effect=os.path.join),          patch('github_resolver.resolve_issues.os.path.exists', return_value=True),          patch('builtins.open', new_callable=mock_open, read_data=instructions_content):
+    with patch('openhands_resolver.resolve_issues.os.path.join', side_effect=os.path.join),          patch('openhands_resolver.resolve_issues.os.path.exists', return_value=True),          patch('builtins.open', new_callable=mock_open, read_data=instructions_content):
 
         # Import the function we want to test
-        from github_resolver.resolve_issues import resolve_issues
+        from openhands_resolver.resolve_issues import resolve_issues
 
         # Create a mock ArgumentParser object
         mock_args = MagicMock()
