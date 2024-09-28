@@ -2,3 +2,4 @@ This is a Python repo for openhands-resolver, a library that attempts to resolve
 
 - Setup: `poetry install --with test --with dev`
 - Testing: Tests can be run with `poetry run pytest tests/test_*.py`. All new tests should be written in pytest conventions (not unittest).
+- Version bumping: When bumping the version, update both `openhands_resolver/__init__.py` and `pyproject.toml`.

@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "openhands-resolver"
-version = "0.1.3"
+version = "0.1.4"
 description = "OpenHands Issue Resolver"
 authors = ["All Hands AI"]
 license = "MIT"
