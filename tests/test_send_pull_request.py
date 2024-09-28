@@ -504,6 +504,7 @@ def test_process_all_successful_issues(
                 "github_username",
                 "draft",
                 None,
+                False,
             ),
             call(
                 "output_dir",
@@ -512,6 +513,7 @@ def test_process_all_successful_issues(
                 "github_username",
                 "draft",
                 None,
+                False,
             ),
         ]
     )
