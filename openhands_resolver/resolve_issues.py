@@ -651,7 +651,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prompt-file",
         type=str,
-        default="openhands_resolver/prompts/resolve/basic-with-tests.jinja",
+        default=None,
         help="Path to the prompt template file in Jinja format.",
     )
     parser.add_argument(
@@ -674,7 +674,7 @@ if __name__ == "__main__":
         my_args.username
         if my_args.username
         else os.getenv("GITHUB_USERNAME")
-    )
+    ) 
 
     if not token:
         raise ValueError("Github token is required.")
@@ -686,7 +686,10 @@ if __name__ == "__main__":
     )
 
     # Read the prompt template
-    with open(my_args.prompt_file, 'r') as f:
+    prompt_file = my_args.prompt_file
+    if prompt_file is None:
+        prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-with-tests.jinja")
+    with open(prompt_file, 'r') as f:
         prompt_template = f.read()
 
     repo_instruction = None
