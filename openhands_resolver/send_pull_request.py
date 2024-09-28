@@ -30,6 +30,7 @@ def apply_patch(repo_dir: str, patch: str) -> None:
 
         # Check if the file is being deleted
         if diff.header.new_path == "/dev/null":
+            assert old_path is not None
             if os.path.exists(old_path):
                 os.remove(old_path)
                 print(f"Deleted file: {old_path}")
@@ -268,7 +269,6 @@ def process_all_successful_issues(
     github_username: str,
     pr_type: str,
     fork_owner: str | None,
-    send_on_failure: bool,
 ) -> None:
     output_path = os.path.join(output_dir, "output.jsonl")
     for resolver_output in load_all_resolver_outputs(output_path):
@@ -281,7 +281,7 @@ def process_all_successful_issues(
                 github_username,
                 pr_type,
                 fork_owner,
-                send_on_failure,
+                False,
             )
 
 
