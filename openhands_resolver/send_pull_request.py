@@ -139,6 +139,11 @@ def make_commit(repo_dir: str, issue: GithubIssue) -> None:
         raise RuntimeError("Failed to commit changes")
 
 
+
+def branch_exists(base_url: str, branch_name: str, headers: dict) -> bool:
+    response = requests.get(f"{base_url}/branches/{branch_name}", headers=headers)
+    return response.status_code == 200
+
 def send_pull_request(
     github_issue: GithubIssue,
     github_token: str,
@@ -158,15 +163,21 @@ def send_pull_request(
     }
     base_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}"
 
-    # Create a new branch
-    branch_name = f"openhands-fix-issue-{github_issue.number}"
+    # Create a new branch with a unique name
+    base_branch_name = f"openhands-fix-issue-{github_issue.number}"
+    branch_name = base_branch_name
+    attempt = 1
+
+    while branch_exists(base_url, branch_name, headers):
+        attempt += 1
+        branch_name = f"{base_branch_name}-try{attempt}"
 
     # Get the default branch
     response = requests.get(f"{base_url}", headers=headers)
     response.raise_for_status()
     default_branch = response.json()["default_branch"]
 
-    # Push changes to the new branch (using git command, as before)
+    # Create and checkout the new branch
     result = subprocess.run(
         f"git -C {patch_dir} checkout -b {branch_name}",
         shell=True,

@@ -213,7 +213,10 @@ def test_send_pull_request(
     repo_path = os.path.join(mock_output_dir, "repo")
 
     # Mock API responses
-    mock_get.return_value = MagicMock(json=lambda: {"default_branch": "main"})
+    mock_get.side_effect = [
+        MagicMock(status_code=404),  # Branch doesn't exist
+        MagicMock(json=lambda: {"default_branch": "main"})
+    ]
     mock_post.return_value.json.return_value = {
         "html_url": "https://github.com/test-owner/test-repo/pull/1"
     }
@@ -234,7 +237,7 @@ def test_send_pull_request(
     )
 
     # Assert API calls
-    assert mock_get.call_count == 1
+    assert mock_get.call_count == 2
 
     # Check branch creation and push
     assert mock_run.call_count == 2
@@ -519,3 +522,55 @@ def test_process_all_successful_issues(
     )
 
     # Add more assertions as needed to verify the behavior of the function
+
+
+@patch('requests.get')
+@patch('subprocess.run')
+def test_send_pull_request_branch_naming(mock_run, mock_get, mock_github_issue, mock_output_dir):
+    repo_path = os.path.join(mock_output_dir, "repo")
+
+    # Mock API responses
+    mock_get.side_effect = [
+        MagicMock(status_code=200),  # First branch exists
+        MagicMock(status_code=200),  # Second branch exists
+        MagicMock(status_code=404),  # Third branch doesn't exist
+        MagicMock(json=lambda: {"default_branch": "main"}),  # Get default branch
+    ]
+
+    # Mock subprocess.run calls
+    mock_run.side_effect = [
+        MagicMock(returncode=0),  # git checkout -b
+        MagicMock(returncode=0),  # git push
+    ]
+
+    # Call the function
+    result = send_pull_request(
+        github_issue=mock_github_issue,
+        github_token="test-token",
+        github_username="test-user",
+        patch_dir=repo_path,
+        pr_type="branch",
+    )
+
+    # Assert API calls
+    assert mock_get.call_count == 4
+
+    # Check branch creation and push
+    assert mock_run.call_count == 2
+    checkout_call, push_call = mock_run.call_args_list
+
+    assert checkout_call == call(
+        f"git -C {repo_path} checkout -b openhands-fix-issue-42-try3",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+    assert push_call == call(
+        f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git openhands-fix-issue-42-try3",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+
+    # Check the result
+    assert result == "https://github.com/test-owner/test-repo/compare/openhands-fix-issue-42-try3?expand=1"
