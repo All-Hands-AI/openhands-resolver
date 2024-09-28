@@ -324,7 +324,11 @@ if __name__ == "__main__":
         default=None,
         help="Owner of the fork to push changes to (if different from the original repo owner).",
     )
-    
+    parser.add_argument(
+        "--send-on-failure",
+        action="store_true",
+        help="Send a pull request even if the issue was not successfully resolved.",
+    )
     my_args = parser.parse_args()
 
     github_token = (
