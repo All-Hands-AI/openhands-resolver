@@ -1,4 +1,4 @@
-name: Auto-Fix Tagged Issues
+name: Auto-Fix Tagged Issues with OpenHands (Experimental)
 
 on:
   issues:
