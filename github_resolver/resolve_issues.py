@@ -693,6 +693,12 @@ if __name__ == "__main__":
     if my_args.repo_instruction_file:
         with open(my_args.repo_instruction_file, 'r') as f:
             repo_instruction = f.read()
+    else:
+        # Check for .openhands_instructions file in the workspace directory
+        openhands_instructions_path = os.path.join(my_args.workspace_dir, '.openhands_instructions')
+        if os.path.exists(openhands_instructions_path):
+            with open(openhands_instructions_path, 'r') as f:
+                repo_instruction = f.read()
 
     issue_numbers = None
     if my_args.issue_numbers:
