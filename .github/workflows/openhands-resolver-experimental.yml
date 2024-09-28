@@ -77,7 +77,7 @@ jobs:
               --issue-number ${{ github.event.issue.number }} \
               --pr-type branch \
               --send-on-failure | tee branch_result.txt && \
-              grep "Branch" branch_result.txt | sed 's/.*\///g; s/.expand=1//g' > branch_name.txt
+              grep "Branch" branch_result.txt | sed -E 's/.*Branch ([^ ]+).*/\1/' > branch_name.txt
           fi
 
       - name: Comment on issue
