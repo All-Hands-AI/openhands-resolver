@@ -569,7 +569,7 @@ async def resolve_issues(
     logger.info("Finished.")
 
 
-if __name__ == "__main__":
+def main():
 
     parser = argparse.ArgumentParser(description="Resolve issues from Github.")
     parser.add_argument(
@@ -720,3 +720,7 @@ if __name__ == "__main__":
             issue_numbers=issue_numbers,
         )
     )
+
+
+if __name__ == "__main__":
+    main()

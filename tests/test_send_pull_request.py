@@ -524,6 +524,7 @@ def test_process_all_successful_issues(
     # Add more assertions as needed to verify the behavior of the function
 
 
+
 @patch('requests.get')
 @patch('subprocess.run')
 def test_send_pull_request_branch_naming(mock_run, mock_get, mock_github_issue, mock_output_dir):
@@ -574,3 +575,59 @@ def test_send_pull_request_branch_naming(mock_run, mock_get, mock_github_issue, 
 
     # Check the result
     assert result == "https://github.com/test-owner/test-repo/compare/openhands-fix-issue-42-try3?expand=1"
+
+@patch('openhands_resolver.send_pull_request.argparse.ArgumentParser')
+@patch('openhands_resolver.send_pull_request.process_all_successful_issues')
+@patch('openhands_resolver.send_pull_request.process_single_issue')
+@patch('openhands_resolver.send_pull_request.load_single_resolver_output')
+@patch('os.path.exists')
+@patch('os.getenv')
+def test_main(mock_getenv, mock_path_exists, mock_load_single_resolver_output, 
+              mock_process_single_issue, mock_process_all_successful_issues, mock_parser):
+    from openhands_resolver.send_pull_request import main
+    
+    # Setup mock parser
+    mock_args = MagicMock()
+    mock_args.github_token = None
+    mock_args.github_username = None
+    mock_args.output_dir = '/mock/output'
+    mock_args.pr_type = 'draft'
+    mock_args.issue_number = '42'
+    mock_args.fork_owner = None
+    mock_args.send_on_failure = False
+    mock_parser.return_value.parse_args.return_value = mock_args
+
+    # Setup environment variables
+    mock_getenv.side_effect = lambda key, default=None: 'mock_token' if key == 'GITHUB_TOKEN' else default
+
+    # Setup path exists
+    mock_path_exists.return_value = True
+
+    # Setup mock resolver output
+    mock_resolver_output = MagicMock()
+    mock_load_single_resolver_output.return_value = mock_resolver_output
+
+    # Run main function
+    main()
+
+    # Assert function calls
+    mock_parser.assert_called_once()
+    mock_getenv.assert_any_call('GITHUB_TOKEN')
+    mock_path_exists.assert_called_with('/mock/output')
+    mock_load_single_resolver_output.assert_called_with('/mock/output/output.jsonl', 42)
+    mock_process_single_issue.assert_called_with(
+        '/mock/output', mock_resolver_output, 'mock_token', None, 'draft', None, False
+    )
+
+    # Test for 'all_successful' issue number
+    mock_args.issue_number = 'all_successful'
+    main()
+    mock_process_all_successful_issues.assert_called_with(
+        '/mock/output', 'mock_token', None, 'draft', None, False
+    )
+
+    # Test for invalid issue number
+    mock_args.issue_number = 'invalid'
+    with pytest.raises(ValueError):
+        main()
+
