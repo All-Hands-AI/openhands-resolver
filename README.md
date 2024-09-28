@@ -94,6 +94,31 @@ If you want to upload to a fork, you can do so by specifying the `fork-owner`.
 poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
 ```
 
+## Using the GitHub Actions Workflow
+
+This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'. To use this workflow in your own repository:
+
+1. Copy the `.github/workflows/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
+
+2. Set up the following GitHub secrets in your repository:
+   - `PAT_TOKEN`: A Personal Access Token with repo scope (used for creating PRs and branches)
+   - `PAT_USERNAME`: Your GitHub username
+   - `LLM_MODEL`: The LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
+   - `LLM_API_KEY`: Your API key for the LLM service
+   - `LLM_BASE_URL`: The base URL for the LLM API (if applicable)
+
+   Note: The workflow also uses the default `GITHUB_TOKEN` secret for some operations, which is automatically provided by GitHub Actions.
+
+3. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
+
+The workflow will:
+- Attempt to resolve the issue using the OpenHands resolver
+- Create a draft PR if successful, or push a branch if unsuccessful
+- Comment on the issue with the results
+
+Note: This workflow requires the `openhands-resolver` package, which will be installed automatically during the workflow execution.
+
+
 ## Troubleshooting
 
 If you have any issues, please open an issue on this github repo, we're happy
