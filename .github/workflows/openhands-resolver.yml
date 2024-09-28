@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install git+https://github.com/all-hands-ai/github-resolver.git
+          pip install git+https://github.com/all-hands-ai/openhands-resolver.git
 
       - name: Attempt to resolve issue
         env:
@@ -46,7 +46,7 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
         run: |
-          python -m github_resolver.resolve_issues \
+          python -m openhands_resolver.resolve_issues \
             --repo ${{ github.repository }} \
             --issue-numbers ${{ github.event.issue.number }} 
 
@@ -68,12 +68,12 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
-            python -m github_resolver.send_pull_request \
+            python -m openhands_resolver.send_pull_request \
               --issue-number ${{ github.event.issue.number }} \
               --pr-type draft | tee pr_result.txt && \
               grep "draft created" pr_result.txt | sed 's/.*\///g' > pr_number.txt
           else
-            python -m github_resolver.send_pull_request \
+            python -m openhands_resolver.send_pull_request \
               --issue-number ${{ github.event.issue.number }} \
               --pr-type branch | tee branch_result.txt && \
               grep "Branch" branch_result.txt | awk '{print $2}' > branch_name.txt
@@ -102,6 +102,6 @@ jobs:
                 issue_number: issueNumber,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `An attempt was made to automatically fix this issue, but it was unsuccessful. A branch named '${branchName}' has been created with the attempted changes. Manual intervention may be required.`
+                body: `An attempt was made to automatically fix this issue, but it was unsuccessful. A branch named '${branchName}' has been created with the attempted changes. You can view the branch [here](https://github.com/${context.repo.owner}/${context.repo.repo}/tree/${branchName}). Manual intervention may be required.`
               });
             }

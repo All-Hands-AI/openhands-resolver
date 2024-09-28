@@ -16,8 +16,8 @@ First, make sure that you have `poetry`
 then install the github resolver package:
 
 ```bash
-git clone github.com/All-Hands-AI/github-resolver
-cd github-resolver
+git clone github.com/All-Hands-AI/openhands-resolver
+cd openhands-resolver
 poetry install
 ```
 
@@ -49,7 +49,7 @@ Run the following command to resolve issues in the `[OWNER]/[REPO]` repository.
 For instance, if you want to resolve issues in this repo, you would run:
 
 ```bash
-poetry run python github_resolver/resolve_issues.py --repo all-hands-ai/github-resolver
+poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
 ```
 
 The output will be written to the `output/` directory.
@@ -58,7 +58,7 @@ Alternatively, if you only want to resolve a subset of the issues, you can speci
 list of issues to resolve. For instance, if you want to resolve issues 100 and 101, you can run
 
 ```bash
-poetry run python github_resolver/resolve_issues.py --repo all-hands-ai/github-resolver --issue-numbers 100,101
+poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver --issue-numbers 100,101
 ```
 
 ## Visualizing successful PRs
@@ -72,7 +72,7 @@ grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*/\1/g'
 Then you can go through and visualize the ones you'd like.
 
 ```bash
-poetry run python github_resolver/visualize_resolver_output.py --issue-number ISSUE_NUMBER --vis-method json
+poetry run python openhands_resolver/visualize_resolver_output.py --issue-number ISSUE_NUMBER --vis-method json
 ```
 
 ## Uploading PRs
@@ -85,13 +85,13 @@ There are three ways you can upload
 3. `ready` - create a non-draft PR that's ready for review
 
 ```bash
-poetry run python github_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
+poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
 ```
 
 If you want to upload to a fork, you can do so by specifying the `fork-owner`.
 
 ```bash
-poetry run python github_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
+poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
 ```
 
 ## Troubleshooting

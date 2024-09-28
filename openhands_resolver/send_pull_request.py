@@ -1,16 +1,16 @@
 import argparse
 import os
 import shutil
-from github_resolver.github_issue import GithubIssue
-from github_resolver.io_utils import (
+from openhands_resolver.github_issue import GithubIssue
+from openhands_resolver.io_utils import (
     load_all_resolver_outputs,
     load_single_resolver_output,
 )
-from github_resolver.patching import parse_patch, apply_diff
+from openhands_resolver.patching import parse_patch, apply_diff
 import requests
 import subprocess
 
-from github_resolver.resolver_output import ResolverOutput
+from openhands_resolver.resolver_output import ResolverOutput
 
 
 def apply_patch(repo_dir: str, patch: str) -> None:

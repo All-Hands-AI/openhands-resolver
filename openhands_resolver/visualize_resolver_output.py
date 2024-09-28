@@ -1,6 +1,6 @@
 import argparse
 import os
-from github_resolver.io_utils import load_single_resolver_output
+from openhands_resolver.io_utils import load_single_resolver_output
 
 
 def visualize_resolver_output(issue_number: int, output_dir: str, vis_method: str):

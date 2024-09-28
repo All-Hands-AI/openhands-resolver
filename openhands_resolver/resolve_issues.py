@@ -18,8 +18,8 @@ from tqdm import tqdm
 
 from litellm import completion
 
-from github_resolver.github_issue import GithubIssue
-from github_resolver.resolver_output import ResolverOutput
+from openhands_resolver.github_issue import GithubIssue
+from openhands_resolver.resolver_output import ResolverOutput
 import openhands
 from openhands.core.main import create_runtime, run_controller
 from openhands.controller.state.state import State
@@ -37,7 +37,7 @@ from openhands.core.config import (
 )
 from openhands.core.config import LLMConfig
 from openhands.runtime.runtime import Runtime
-from github_resolver.utils import (
+from openhands_resolver.utils import (
     codeact_user_response,
     reset_logger_for_multiprocessing,
 )
@@ -651,7 +651,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prompt-file",
         type=str,
-        default="github_resolver/prompts/resolve/basic-with-tests.jinja",
+        default="openhands_resolver/prompts/resolve/basic-with-tests.jinja",
         help="Path to the prompt template file in Jinja format.",
     )
     parser.add_argument(
