@@ -235,8 +235,9 @@ def process_single_issue(
     github_username: str,
     pr_type: str,
     fork_owner: str | None,
+    send_on_failure: bool,
 ) -> None:
-    if not resolver_output.success:
+    if not resolver_output.success and not send_on_failure:
         print(
             f"Issue {issue_number} was not successfully resolved. Skipping PR creation."
         )
@@ -267,6 +268,7 @@ def process_all_successful_issues(
     github_username: str,
     pr_type: str,
     fork_owner: str | None,
+    send_on_failure: bool,
 ) -> None:
     output_path = os.path.join(output_dir, "output.jsonl")
     for resolver_output in load_all_resolver_outputs(output_path):
@@ -279,6 +281,7 @@ def process_all_successful_issues(
                 github_username,
                 pr_type,
                 fork_owner,
+                send_on_failure,
             )
 
 
@@ -321,6 +324,7 @@ if __name__ == "__main__":
         default=None,
         help="Owner of the fork to push changes to (if different from the original repo owner).",
     )
+    
     my_args = parser.parse_args()
 
     github_token = (
@@ -347,6 +351,7 @@ if __name__ == "__main__":
             github_username,
             my_args.pr_type,
             my_args.fork_owner,
+            my_args.send_on_failure,
         )
     else:
         if not my_args.issue_number.isdigit():
@@ -361,4 +366,5 @@ if __name__ == "__main__":
             github_username,
             my_args.pr_type,
             my_args.fork_owner,
+            my_args.send_on_failure,
         )

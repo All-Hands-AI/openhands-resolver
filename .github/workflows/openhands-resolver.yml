@@ -75,8 +75,9 @@ jobs:
           else
             python -m openhands_resolver.send_pull_request \
               --issue-number ${{ github.event.issue.number }} \
-              --pr-type branch | tee branch_result.txt && \
-              grep "Branch" branch_result.txt | awk '{print $2}' > branch_name.txt
+              --pr-type branch \
+              --send-on-failure | tee branch_result.txt && \
+              grep "Branch" branch_result.txt | sed 's/.*\///g; s/.expand=1//g' > branch_name.txt
           fi
 
       - name: Comment on issue
