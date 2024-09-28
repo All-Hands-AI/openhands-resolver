@@ -1,5 +1,6 @@
 import toml
 import os
+import openhands_resolver
 
 def test_version():
     # Get the directory of the current file
@@ -16,4 +17,4 @@ def test_version():
     # Get the version from the pyproject.toml file
     version = pyproject_data['tool']['poetry']['version']
     
-    assert version == "0.1.1"
+    assert version == openhands_resolver.__version__
