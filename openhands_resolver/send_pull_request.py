@@ -9,6 +9,7 @@ from openhands_resolver.io_utils import (
 from openhands_resolver.patching import parse_patch, apply_diff
 import requests
 import subprocess
+import shlex
 
 from openhands_resolver.resolver_output import ResolverOutput
 
@@ -128,8 +129,9 @@ def make_commit(repo_dir: str, issue: GithubIssue) -> None:
         print(f"Error adding files: {result.stderr}")
         raise RuntimeError("Failed to add files to git")
 
+    commit_message = f"Fix issue #{issue.number}: {shlex.quote(issue.title)}"
     result = subprocess.run(
-        f"git -C {repo_dir} commit -m 'Fix issue #{issue.number}: {issue.title}'",
+        f"git -C {repo_dir} commit -m {shlex.quote(commit_message)}",
         shell=True,
         capture_output=True,
         text=True,
@@ -251,7 +253,7 @@ def process_single_issue(
 ) -> None:
     if not resolver_output.success and not send_on_failure:
         print(
-            f"Issue {issue_number} was not successfully resolved. Skipping PR creation."
+            f"Issue {resolver_output.issue.number} was not successfully resolved. Skipping PR creation."
         )
         return
 
