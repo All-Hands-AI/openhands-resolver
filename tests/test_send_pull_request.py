@@ -1,6 +1,8 @@
 import os
+import shlex
 import tempfile
 import pytest
+import subprocess
 from unittest.mock import patch, MagicMock, call
 
 from openhands_resolver.send_pull_request import (
@@ -10,6 +12,7 @@ from openhands_resolver.send_pull_request import (
     process_single_issue,
     send_pull_request,
     process_all_successful_issues,
+    make_commit,
 )
 from openhands_resolver.resolver_output import ResolverOutput, GithubIssue
 
@@ -423,6 +426,52 @@ def test_process_single_issue(
     )
 
 
+@patch("openhands_resolver.send_pull_request.initialize_repo")
+@patch("openhands_resolver.send_pull_request.apply_patch")
+@patch("openhands_resolver.send_pull_request.send_pull_request")
+@patch("openhands_resolver.send_pull_request.make_commit")
+def test_process_single_issue_unsuccessful(
+    mock_make_commit,
+    mock_send_pull_request,
+    mock_apply_patch,
+    mock_initialize_repo,
+    mock_output_dir,
+):
+    # Initialize test data
+    github_token = "test_token"
+    github_username = "test_user"
+    pr_type = "draft"
+
+    resolver_output = ResolverOutput(
+        issue=GithubIssue(
+            owner="test-owner",
+            repo="test-repo",
+            number=1,
+            title="Issue 1",
+            body="Body 1",
+        ),
+        instruction="Test instruction 1",
+        base_commit="def456",
+        git_patch="Test patch 1",
+        history=[],
+        metrics={},
+        success=False,
+        success_explanation="",
+        error="Test error",
+    )
+
+    # Call the function
+    process_single_issue(
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, None, False
+    )
+
+    # Assert that none of the mocked functions were called
+    mock_initialize_repo.assert_not_called()
+    mock_apply_patch.assert_not_called()
+    mock_make_commit.assert_not_called()
+    mock_send_pull_request.assert_not_called()
+
+
 @patch("openhands_resolver.send_pull_request.load_all_resolver_outputs")
 @patch("openhands_resolver.send_pull_request.process_single_issue")
 def test_process_all_successful_issues(
@@ -631,3 +680,30 @@ def test_main(mock_getenv, mock_path_exists, mock_load_single_resolver_output,
     with pytest.raises(ValueError):
         main()
 
+@patch('subprocess.run')
+def test_make_commit_escapes_issue_title(mock_subprocess_run):
+    # Setup
+    repo_dir = '/path/to/repo'
+    issue = GithubIssue(
+        owner='test-owner',
+        repo='test-repo',
+        number=42,
+        title='Issue with "quotes" and $pecial characters',
+        body='Test body'
+    )
+
+    # Mock subprocess.run to return success for all calls
+    mock_subprocess_run.return_value = MagicMock(returncode=0, stdout='', stderr='')
+
+    # Call the function
+    make_commit(repo_dir, issue)
+
+    # Assert that subprocess.run was called with the correct arguments
+    calls = mock_subprocess_run.call_args_list
+    assert len(calls) == 4  # git config check, git add, git commit
+
+    # Check the git commit call
+    git_commit_call = calls[3][0][0]
+    expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
+    shlex_quote_message = shlex.quote(expected_commit_message)
+    assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call

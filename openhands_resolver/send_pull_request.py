@@ -253,7 +253,7 @@ def process_single_issue(
 ) -> None:
     if not resolver_output.success and not send_on_failure:
         print(
-            f"Issue {issue_number} was not successfully resolved. Skipping PR creation."
+            f"Issue {resolver_output.issue.number} was not successfully resolved. Skipping PR creation."
         )
         return
 
