@@ -98,7 +98,7 @@ poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_N
 
 This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'. To use this workflow in your own repository:
 
-1. Copy the `.github/workflows/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
+1. Copy the `examples/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
 
 2. Set up the following GitHub secrets in your repository:
    - `PAT_TOKEN`: A Personal Access Token with repo scope (used for creating PRs and branches)
@@ -112,6 +112,7 @@ This repository includes a GitHub Actions workflow that can automatically attemp
 3. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
 
 The workflow will:
+
 - Attempt to resolve the issue using the OpenHands resolver
 - Create a draft PR if successful, or push a branch if unsuccessful
 - Comment on the issue with the results
