@@ -109,13 +109,6 @@ If you want to upload to a fork, you can do so by specifying the `fork-owner`.
 python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
 ```
 
-If you've installed the package from source using poetry, you can still use the previous methods:
-
-```bash
-poetry run python openhands_resolver/visualize_resolver_output.py --issue-number ISSUE_NUMBER --vis-method json
-poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
-```
-
 ## Using the GitHub Actions Workflow
 
 This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'. To use this workflow in your own repository:
