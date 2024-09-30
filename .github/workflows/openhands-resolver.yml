@@ -1,6 +1,11 @@
 name: Auto-Fix Tagged Issues with OpenHands
 
 on:
+  workflow_call:
+    inputs:
+      issue_number:
+        required: true
+        type: number
   issues:
     types: [labeled]
 
@@ -11,7 +16,7 @@ permissions:
 
 jobs:
   auto-fix:
-    if: github.event.label.name == 'fix-me'
+    if: github.event_name == 'workflow_call' || github.event.label.name == 'fix-me'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -22,13 +27,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set issue number
+        run: echo "ISSUE_NUMBER=${{ github.event.issue.number || inputs.issue_number }}" >> $GITHUB_ENV
+
       - name: Comment on issue with start message
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: ${{ env.ISSUE_NUMBER }},
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `OpenHands started fixing the issue! You can monitor the progress [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`
@@ -48,7 +56,7 @@ jobs:
         run: |
           python -m openhands_resolver.resolve_issues \
             --repo ${{ github.repository }} \
-            --issue-numbers ${{ github.event.issue.number }} 
+            --issue-numbers ${{ env.ISSUE_NUMBER }}
 
       - name: Check resolution result
         id: check_result
@@ -69,12 +77,12 @@ jobs:
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
             python -m openhands_resolver.send_pull_request \
-              --issue-number ${{ github.event.issue.number }} \
+              --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type draft | tee pr_result.txt && \
               grep "draft created" pr_result.txt | sed 's/.*\///g' > pr_number.txt
           else
             python -m openhands_resolver.send_pull_request \
-              --issue-number ${{ github.event.issue.number }} \
+              --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type branch \
               --send-on-failure | tee branch_result.txt && \
               grep "branch created" branch_result.txt | sed 's/.*\///g; s/.expand=1//g' > branch_name.txt
@@ -86,7 +94,7 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs');
-            const issueNumber = context.issue.number;
+            const issueNumber = ${{ env.ISSUE_NUMBER }};
             const success = ${{ steps.check_result.outputs.RESOLUTION_SUCCESS }};
             
             let prNumber = '';
