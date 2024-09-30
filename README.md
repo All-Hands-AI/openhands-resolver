@@ -9,11 +9,15 @@ to attempt to resolve issues for you.
 
 It's quite simple to get setup, just follow the instructions below.
 
-## Setup
+## Installation
 
-First, make sure that you have `poetry`
-[installed](https://python-poetry.org/docs/#installing-with-the-official-installer),
-then install the github resolver package:
+You can install the OpenHands Github Resolver package directly from PyPI using pip:
+
+```bash
+pip install openhands-resolver
+```
+
+Alternatively, if you want to install from source or contribute to the project, you can clone the repository and use poetry:
 
 ```bash
 git clone github.com/All-Hands-AI/openhands-resolver
@@ -45,20 +49,31 @@ export LLM_API_KEY="sk_test_12345"
 
 ## Running the agent to resolve issues
 
-Run the following command to resolve issues in the `[OWNER]/[REPO]` repository.
+After installing the package, you can run the agent to resolve issues using the following command:
+
+```bash
+python -m openhands_resolver.resolve_issues --repo [OWNER]/[REPO]
+```
+
 For instance, if you want to resolve issues in this repo, you would run:
 
 ```bash
-poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
+python -m openhands_resolver.resolve_issues --repo all-hands-ai/openhands-resolver
 ```
 
 The output will be written to the `output/` directory.
 
 Alternatively, if you only want to resolve a subset of the issues, you can specify a
-list of issues to resolve. For instance, if you want to resolve issues 100 and 101, you can run
+list of issues to resolve. For instance, if you want to resolve issues 100 and 101, you can run:
 
 ```bash
-poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver --issue-numbers 100,101
+python -m openhands_resolver.resolve_issues --repo all-hands-ai/openhands-resolver --issue-numbers 100,101
+```
+
+If you've installed the package from source using poetry, you can still use the previous method:
+
+```bash
+poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
 ```
 
 ## Visualizing successful PRs
@@ -66,13 +81,13 @@ poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openh
 To find successful PRs, you can run the following command:
 
 ```bash
-grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*/\1/g'
+grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*//g'
 ```
 
 Then you can go through and visualize the ones you'd like.
 
 ```bash
-poetry run python openhands_resolver/visualize_resolver_output.py --issue-number ISSUE_NUMBER --vis-method json
+python -m openhands_resolver.visualize_resolver_output --issue-number ISSUE_NUMBER --vis-method json
 ```
 
 ## Uploading PRs
@@ -85,13 +100,20 @@ There are three ways you can upload
 3. `ready` - create a non-draft PR that's ready for review
 
 ```bash
-poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
+python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
 ```
 
 If you want to upload to a fork, you can do so by specifying the `fork-owner`.
 
 ```bash
-poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
+python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
+```
+
+If you've installed the package from source using poetry, you can still use the previous methods:
+
+```bash
+poetry run python openhands_resolver/visualize_resolver_output.py --issue-number ISSUE_NUMBER --vis-method json
+poetry run python openhands_resolver/send_pull_request.py --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
 ```
 
 ## Using the GitHub Actions Workflow
