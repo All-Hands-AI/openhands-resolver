@@ -9,27 +9,45 @@ to attempt to resolve issues for you.
 
 It's quite simple to get setup, just follow the instructions below.
 
+## Using the GitHub Actions Workflow
+
+This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'.
+Follow the steps to use this workflow in your own repository, and feel free to contact us through github issues or [contact@all-hands.dev](mailto:contact@all-hands.dev) if you have questions:
+
+1. Create a github personal access token. You can:
+    1. [Contact us](mailto:contact@all-hands.dev) and we will set up a token for the [openhands-agent](https://github.com/openhands-agent) account (if you want to make it clear which commits came from the agent.
+    2. Choose your own github user that will make the commits to the repo, [and create a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows" on the desired repos.
+
+2. Create an API key for the [Claude API](https://www.anthropic.com/api) (you can also use GPT, but Claude has better performance).
+
+3. Copy the `examples/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
+
+4. Set up the following [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) in your repository, or across your entire org if you want to only set ths once and use the resolver in multiple repositories:
+   - `PAT_USERNAME`: The github username that you used to create the personal access token.
+   - `PAT_TOKEN`: The personal access token for github.
+   - `LLM_MODEL`: The LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
+   - `LLM_API_KEY`: Your API key for the LLM service
+   - `LLM_BASE_URL`: The base URL for the LLM API (optional, only if using a proxy)
+
+5. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
+
+The workflow will:
+
+- Attempt to resolve the issue using the OpenHands resolver
+- Create a draft PR if successful, or push a branch if unsuccessful
+- Comment on the issue with the results
+
 ## Installation
 
-You can install the OpenHands Github Resolver package directly from PyPI using pip:
+If you want to instead run the resolver on your own programmatically.
 
 ```bash
 pip install openhands-resolver
 ```
 
-Alternatively, if you want to install from source or contribute to the project, you can clone the repository and use poetry:
-
-```bash
-git clone github.com/All-Hands-AI/openhands-resolver
-cd openhands-resolver
-poetry install
-```
-
-If you don't have one already, create a GitHub access token. You can use
-[this link](https://github.com/settings/tokens/new?description=openhands-issue-resolver&scopes=repo)
-to quickly generate a classic access token. Or, for additional security, you can
+If you don't have one already, create a GitHub access token. You can
 [create a fine-grained token](https://github.com/settings/personal-access-tokens/new)
-that has "Content" and "Pull requests" scopes for the repository you
+that has "Content", "Pull requests", "Issues", and "Workflows" scopes for the repository you
 want to resolve issues in. If you don't have push access to that repo,
 you can create a fork of the repo and use the fork.
 
@@ -109,33 +127,7 @@ If you want to upload to a fork, you can do so by specifying the `fork-owner`.
 python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
 ```
 
-## Using the GitHub Actions Workflow
-
-This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'. To use this workflow in your own repository:
-
-1. Copy the `examples/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
-
-2. Set up the following GitHub secrets in your repository:
-   - `PAT_TOKEN`: A Personal Access Token with repo scope (used for creating PRs and branches)
-   - `PAT_USERNAME`: Your GitHub username
-   - `LLM_MODEL`: The LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
-   - `LLM_API_KEY`: Your API key for the LLM service
-   - `LLM_BASE_URL`: The base URL for the LLM API (if applicable)
-
-   Note: The workflow also uses the default `GITHUB_TOKEN` secret for some operations, which is automatically provided by GitHub Actions.
-
-3. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
-
-The workflow will:
-
-- Attempt to resolve the issue using the OpenHands resolver
-- Create a draft PR if successful, or push a branch if unsuccessful
-- Comment on the issue with the results
-
-Note: This workflow requires the `openhands-resolver` package, which will be installed automatically during the workflow execution.
-
-
 ## Troubleshooting
 
-If you have any issues, please open an issue on this github repo, we're happy
-to help! Alternatively, you can join the [OpenHands Slack workspace](https://join.slack.com/t/opendevin/shared_invite/zt-2oikve2hu-UDxHeo8nsE69y6T7yFX_BA) and ask there.
+If you have any issues, please open an issue on this github repo, we're happy to help!
+Alternatively, you can [email us](mailto:contact@all-hands.dev) or join the [OpenHands Slack workspace](https://join.slack.com/t/opendevin/shared_invite/zt-2oikve2hu-UDxHeo8nsE69y6T7yFX_BA) and ask there.
