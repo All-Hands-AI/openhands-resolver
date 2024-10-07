@@ -28,6 +28,8 @@ Follow the steps to use this workflow in your own repository, and feel free to c
    - `LLM_MODEL`: The LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
    - `LLM_API_KEY`: Your API key for the LLM service
    - `LLM_BASE_URL`: The base URL for the LLM API (optional, only if using a proxy)
+In addition, if you want to send pull requests to a repo that's not your own, you can create a fork that you own, and set the following secret:
+   - `PAT_FORK_OWNER`: The username of the fork owner. This is usally the same `PAT_USERNAME`.
 
 5. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
 

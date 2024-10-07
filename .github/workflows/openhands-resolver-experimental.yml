@@ -23,6 +23,12 @@ jobs:
           python-version: '3.11'
 
       - name: Check required environment variables
+        env:
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+          PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
         run: |
           required_vars=("GITHUB_TOKEN" "LLM_MODEL" "LLM_API_KEY" "LLM_BASE_URL" "PAT_TOKEN" "PAT_USERNAME")
           for var in "${required_vars[@]}"; do
