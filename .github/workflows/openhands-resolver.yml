@@ -28,8 +28,14 @@ jobs:
           python-version: '3.11'
 
       - name: Check required environment variables
+        env:
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+          PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
         run: |
-          required_vars=("GITHUB_TOKEN" "LLM_MODEL" "LLM_API_KEY" "LLM_BASE_URL" "PAT_TOKEN" "PAT_USERNAME")
+          required_vars=("LLM_MODEL" "LLM_API_KEY" "LLM_BASE_URL" "PAT_TOKEN" "PAT_USERNAME")
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Error: Required environment variable $var is not set."
@@ -80,7 +86,6 @@ jobs:
       - name: Create draft PR or push branch
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-          GITHUB_USERNAME: ${{ secrets.PAT_USERNAME }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
