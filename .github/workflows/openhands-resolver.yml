@@ -27,6 +27,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Check required environment variables
+        run: |
+          required_vars=("GITHUB_TOKEN" "LLM_MODEL" "LLM_API_KEY" "LLM_BASE_URL" "PAT_TOKEN" "PAT_USERNAME")
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "Error: Required environment variable $var is not set."
+              exit 1
+            fi
+          done
+
       - name: Set issue number
         run: echo "ISSUE_NUMBER=${{ github.event.issue.number || inputs.issue_number }}" >> $GITHUB_ENV
 
