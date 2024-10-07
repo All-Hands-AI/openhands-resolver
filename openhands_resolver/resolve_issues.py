@@ -7,7 +7,7 @@ import shutil
 from typing import Any, Awaitable, TextIO
 import requests
 import argparse
-import json
+import litellm
 import multiprocessing as mp
 import os
 import pathlib
@@ -16,7 +16,6 @@ import jinja2
 
 from tqdm import tqdm
 
-from litellm import completion
 
 from openhands_resolver.github_issue import GithubIssue
 from openhands_resolver.resolver_output import ResolverOutput
@@ -220,17 +219,16 @@ Last message from AI agent:
 (1) has the issue been successfully resolved?
 (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
 
-Answer in JSON in the format below:
+Answer in exactly the format below, with only true or false for success, and an explanation of the result.
 
-```json
-{{
-    "success": true/false,
-    "explanation": "..."
-}}
-```
+--- success
+true/false
+
+--- explanation
+...
 """
 
-    response = completion(
+    response = litellm.completion(
         model=llm_config.model,
         messages=[{"role": "user", "content": prompt}],
         api_key=llm_config.api_key,
@@ -238,16 +236,12 @@ Answer in JSON in the format below:
     )
     
     answer = response.choices[0].message.content.strip()
-    pattern = r'```json\s*([\s\S]*?)\s*```'
+    pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
     match = re.search(pattern, answer)
-    try:
-        if match:
-            json_answer = json.loads(match.group(1))
-        else:
-            json_answer = json.loads(answer)
-        return json_answer['success'], json_answer['explanation']
-    except json.JSONDecodeError:
-        return False, f"Failed to decode JSON from LLM response: {answer}"
+    if match:
+        return match.group(1).lower() == 'true', match.group(2)
+    else:
+        return False, f"Failed to decode answer from LLM response: {answer}"
 
 
 async def process_issue(

@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from openhands_resolver.resolve_issues import (
     create_git_patch,
+    guess_success,
     initialize_runtime,
     complete_runtime,
     get_instruction,
@@ -17,6 +18,7 @@ from openhands.events.action import CmdRunAction
 from openhands.events.observation import CmdOutputObservation, NullObservation
 from openhands_resolver.resolver_output import ResolverOutput
 from openhands.core.config import LLMConfig
+from openhands.memory.history import ShortTermHistory
 
 
 @pytest.fixture
@@ -148,7 +150,7 @@ async def test_complete_runtime():
             exit_code=0,
             content="",
             command_id=4,
-            command="git diff base_commit_hash fix",
+            command='git diff base_commit_hash fix',
         ),
         create_cmd_output(
             exit_code=0, content="git diff content", command_id=5, command="git apply"
@@ -311,6 +313,91 @@ This is a Python repo for openhands-resolver, a library that attempts to resolve
 
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
     assert instruction == expected_instruction
+
+
+def test_guess_success():
+    mock_issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=1,
+        title="Test Issue",
+        body="This is a test issue",
+    )
+    mock_history = MagicMock(spec=ShortTermHistory)
+    mock_history.get_events_as_list.return_value = [
+        create_cmd_output(
+            exit_code=0,
+            content="",
+            command_id=1,
+            command="cd /workspace"
+        )
+    ]
+    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+
+    mock_completion_response = MagicMock()
+    mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\ntrue\n--- explanation\nIssue resolved successfully"))]
+    
+    with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
+        success, explanation = guess_success(mock_issue, mock_history, mock_llm_config)
+        assert success
+        assert explanation == "Issue resolved successfully"
+
+
+def test_guess_success_failure():
+    mock_issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=1,
+        title="Test Issue",
+        body="This is a test issue",
+    )
+    mock_history = MagicMock(spec=ShortTermHistory)
+    mock_history.get_events_as_list.return_value = [
+        create_cmd_output(
+            exit_code=0,
+            content="",
+            command_id=1,
+            command="cd /workspace"
+        )
+    ]
+    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+
+    mock_completion_response = MagicMock()
+    mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\nfalse\n--- explanation\nIssue not resolved"))]
+    
+    with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
+        success, explanation = guess_success(mock_issue, mock_history, mock_llm_config)
+        print(f"success: {success}, explanation: {explanation}")
+        assert not success
+        assert explanation == "Issue not resolved"
+
+
+def test_guess_success_invalid_output():
+    mock_issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=1,
+        title="Test Issue",
+        body="This is a test issue",
+    )
+    mock_history = MagicMock(spec=ShortTermHistory)
+    mock_history.get_events_as_list.return_value = [
+        create_cmd_output(
+            exit_code=0,
+            content="",
+            command_id=1,
+            command="cd /workspace"
+        )
+    ]
+    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+
+    mock_completion_response = MagicMock()
+    mock_completion_response.choices = [MagicMock(message=MagicMock(content="This is not a valid output"))]
+    
+    with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
+        success, explanation = guess_success(mock_issue, mock_history, mock_llm_config)
+        assert not success
+        assert explanation == "Failed to decode answer from LLM response: This is not a valid output"
 
 
 if __name__ == "__main__":
