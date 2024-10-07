@@ -6,6 +6,19 @@ on:
       issue_number:
         required: true
         type: number
+    secrets:
+      LLM_MODEL:
+        required: true
+      LLM_API_KEY:
+        required: true
+      LLM_BASE_URL:
+        required: false
+      PAT_TOKEN:
+        required: true
+      PAT_USERNAME:
+        required: true
+      PAT_FORK_OWNER:
+        required: false
   issues:
     types: [labeled]
 
@@ -35,7 +48,7 @@ jobs:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
           PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
         run: |
-          required_vars=("LLM_MODEL" "LLM_API_KEY" "LLM_BASE_URL" "PAT_TOKEN" "PAT_USERNAME")
+          required_vars=("LLM_MODEL" "LLM_API_KEY" "PAT_TOKEN" "PAT_USERNAME")
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Error: Required environment variable $var is not set."
