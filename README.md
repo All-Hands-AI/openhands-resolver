@@ -14,7 +14,7 @@ It's quite simple to get setup, just follow the instructions below.
 This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'.
 Follow the steps to use this workflow in your own repository, and feel free to contact us through github issues or [contact@all-hands.dev](mailto:contact@all-hands.dev) if you have questions:
 
-1. Create a github personal access token. You can:
+1. Prepare a github personal access token. You can:
     1. [Contact us](mailto:contact@all-hands.dev) and we will set up a token for the [openhands-agent](https://github.com/openhands-agent) account (if you want to make it clear which commits came from the agent.
     2. Choose your own github user that will make the commits to the repo, [and create a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows" on the desired repos.
 
@@ -22,7 +22,9 @@ Follow the steps to use this workflow in your own repository, and feel free to c
 
 3. Copy the `examples/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
 
-4. Set up the following [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) in your repository, or across your entire org if you want to only set ths once and use the resolver in multiple repositories:
+4. Enable read/write workflows for the repository by going to `Settings -> Actions -> General -> Workflow permissions` and selecting "Read and write permissions" and click "Allow Github Actions to create and approve pull requests".
+
+5. Set up the following [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) in your repository, or across your entire org if you want to only set ths once and use the resolver in multiple repositories:
    - `PAT_USERNAME`: The github username that you used to create the personal access token.
    - `PAT_TOKEN`: The personal access token for github.
    - `LLM_MODEL`: The LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
@@ -31,7 +33,7 @@ Follow the steps to use this workflow in your own repository, and feel free to c
 In addition, if you want to send pull requests to a repo that's not your own, you can create a fork that you own, and set the following secret:
    - `PAT_FORK_OWNER`: The username of the fork owner. This is usally the same `PAT_USERNAME`.
 
-5. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
+6. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
 
 The workflow will:
 
