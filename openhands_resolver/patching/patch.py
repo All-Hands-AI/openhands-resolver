@@ -12,7 +12,7 @@ header = namedtuple(
     "index_path old_path old_version new_path new_version",
 )
 
-diffobj = namedtuple("diff", "header changes text")
+diffobj = namedtuple("diffobj", "header changes text")
 Change = namedtuple("Change", "old new line hunk")
 
 file_timestamp_str = "(.+?)(?:\t|:|  +)(.*)"

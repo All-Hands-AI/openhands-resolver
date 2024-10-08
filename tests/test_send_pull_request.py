@@ -2,7 +2,6 @@ import os
 import shlex
 import tempfile
 import pytest
-import subprocess
 from unittest.mock import patch, MagicMock, call
 
 from openhands_resolver.send_pull_request import (
