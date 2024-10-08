@@ -13,7 +13,7 @@ jobs:
     secrets:
       PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
-      PAT_FORK_OWNER: ${{ secrets.PAT_FORK_OWNER }}
+
       LLM_MODEL: ${{ secrets.LLM_MODEL }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}

@@ -17,8 +17,7 @@ on:
         required: true
       PAT_USERNAME:
         required: true
-      PAT_FORK_OWNER:
-        required: false
+
   issues:
     types: [labeled]
 
@@ -102,24 +101,17 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          PAT_FORK_OWNER: ${{ secrets.PAT_FORK_OWNER }}
         run: |
-          FORK_OWNER_ARG=""
-          if [ -n "$PAT_FORK_OWNER" ]; then
-            FORK_OWNER_ARG="--fork-owner $PAT_FORK_OWNER"
-          fi
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
             python -m openhands_resolver.send_pull_request \
               --issue-number ${{ env.ISSUE_NUMBER }} \
-              --pr-type draft \
-              $FORK_OWNER_ARG | tee pr_result.txt && \
+              --pr-type draft | tee pr_result.txt && \
               grep "draft created" pr_result.txt | sed 's/.*\///g' > pr_number.txt
           else
             python -m openhands_resolver.send_pull_request \
               --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type branch \
-              --send-on-failure \
-              $FORK_OWNER_ARG | tee branch_result.txt && \
+              --send-on-failure | tee branch_result.txt && \
               grep "branch created" branch_result.txt | sed 's/.*\///g; s/.expand=1//g' > branch_name.txt
           fi
 
