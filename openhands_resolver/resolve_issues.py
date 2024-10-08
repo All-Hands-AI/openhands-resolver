@@ -391,6 +391,61 @@ def download_issues_from_github(
         )
     return converted_issues
 
+def download_pull_requests_from_github(
+    owner: str, repo: str, token: str
+) -> list[GithubIssue]:
+    """Download pull requests from Github.
+
+    Args:
+        owner: Owner of the github repo
+        repo: Github repository to resolve pull requests.
+        token: Github token to access the repository.
+
+    Returns:
+        List of Github pull requests.
+    """
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    params: dict[str, int | str] = {"state": "open", "per_page": 100, "page": 1}
+    all_prs = []
+
+    while True:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        prs = response.json()
+
+        if not prs:
+            break
+
+        if not isinstance(prs, list) or any(
+            [not isinstance(pr, dict) for pr in prs]
+        ):
+            raise ValueError("Expected list of dictionaries from Github API.")
+
+        all_prs.extend(prs)
+        assert isinstance(params["page"], int)
+        params["page"] += 1
+    converted_prs = []
+    for pr in all_prs:
+        if any([pr.get(key) is None for key in ["number", "title", "body"]]):
+            logger.warning(
+                f"Skipping pull request {pr} as it is missing number, title, or body."
+            )
+            continue
+        converted_prs.append(
+            GithubIssue(
+                owner=owner,
+                repo=repo,
+                number=pr["number"],
+                title=pr["title"],
+                body=pr["body"],
+            )
+        )
+    return converted_prs
+
 
 # This function tracks the progress AND write the output to a JSONL file
 async def update_progress(output: Awaitable[ResolverOutput], output_fp: TextIO, pbar: tqdm) -> None:
@@ -407,47 +462,51 @@ async def update_progress(output: Awaitable[ResolverOutput], output_fp: TextIO, 
     output_fp.flush()
 
 
-async def resolve_issues(
+async def resolve_items(
     owner: str,
     repo: str,
     token: str,
     username: str,
     max_iterations: int,
-    limit_issues: int | None,
+    limit_items: int | None,
     num_workers: int,
     output_dir: str,
     llm_config: LLMConfig,
     runtime_container_image: str,
-    prompt_template: str,  # Add this parameter
+    prompt_template: str,
     repo_instruction: str | None,
-    issue_numbers: list[int] | None,
+    item_numbers: list[int] | None,
+    item_type: str,
 ) -> None:
-    """Resolve github issues.
+    """Resolve github issues or pull requests.
 
     Args:
         owner: Github owner of the repo.
-        repo: Github repository to resolve issues in form of `owner/repo`.
+        repo: Github repository to resolve issues or pull requests in form of `owner/repo`.
         token: Github token to access the repository.
         username: Github username to access the repository.
         max_iterations: Maximum number of iterations to run
-        limit_issues: Limit the number of issues to resolve.
+        limit_items: Limit the number of issues or pull requests to resolve.
         output_dir: Output directory to write the results.
         runtime_container_image: Container image to use.
         prompt_template: Prompt template to use.
         repo_instruction: Repository instruction to use.
-        issue_numbers: List of issue numbers to resolve.
+        item_numbers: List of issue or pull request numbers to resolve.
+        item_type: Type of GitHub item to resolve: 'issue' or 'pr' (pull request).
     """
 
     # Load dataset
-    issues: list[GithubIssue] = download_issues_from_github(
-        owner, repo, token
-    )
-    if issue_numbers is not None:
-        issues = [issue for issue in issues if issue.number in issue_numbers]
-        logger.info(f"Limiting resolving to issues {issue_numbers}.")
-    if limit_issues is not None:
-        issues = issues[:limit_issues]
-        logger.info(f"Limiting resolving to first {limit_issues} issues.")
+    if item_type == "issue":
+        items: list[GithubIssue] = download_issues_from_github(owner, repo, token)
+    else:
+        items: list[GithubIssue] = download_pull_requests_from_github(owner, repo, token)
+
+    if item_numbers is not None:
+        items = [item for item in items if item.number in item_numbers]
+        logger.info(f"Limiting resolving to {item_type}s {item_numbers}.")
+    if limit_items is not None:
+        items = items[:limit_items]
+        logger.info(f"Limiting resolving to first {limit_items} {item_type}s.")
 
     # TEST METADATA
     model_name = llm_config.model.split("/")[-1]
@@ -457,6 +516,64 @@ async def resolve_issues(
         parents=True, exist_ok=True
     )
     logger.info(f"Using output directory: {output_dir}")
+
+    # Update the output file name to include the item_type
+    output_file = os.path.join(
+        output_dir, f"{owner}_{repo}_{model_name}_{item_type}s.jsonl"
+    )
+    logger.info(f"Writing output to {output_file}")
+
+    with open(output_file, "w") as output_fp:
+        # Get the base commit
+        base_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=os.getcwd()
+        ).decode("utf-8").strip()
+
+        # This sets the multi-processing
+        logger.info(f"Using {num_workers} workers.")
+
+        try:
+            # Replace the ProcessPoolExecutor with asyncio.gather
+            tasks = []
+            for item in items:
+                task = update_progress(
+                    process_item(
+                        item,
+                        base_commit,
+                        max_iterations,
+                        llm_config,
+                        output_dir,
+                        runtime_container_image,
+                        prompt_template,
+                        repo_instruction,
+                        bool(num_workers > 1),
+                        item_type,
+                    ),
+                    output_fp,
+                    tqdm(total=len(items), desc=f"Resolving {item_type}s"),
+                )
+                tasks.append(task)
+
+            # Use asyncio.gather with a semaphore to limit concurrency
+            sem = asyncio.Semaphore(num_workers)
+
+            async def run_with_semaphore(task):
+                async with sem:
+                    return await task
+
+            await asyncio.gather(*[run_with_semaphore(task) for task in tasks])
+
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt received. Cleaning up...")
+            cleanup()
+
+    logger.info("Finished.")
+
+    # Update the output file name to include the issue_type
+    output_file = os.path.join(
+        output_dir, f"{owner}_{repo}_{model_name}_{issue_type}s.jsonl"
+    )
+    logger.info(f"Writing output to {output_file}")
 
     # checkout the repo
     repo_dir = os.path.join(output_dir, "repo")
@@ -656,6 +773,13 @@ def main():
         default=None,
         help="Path to the repository instruction file in text format.",
     )
+    parser.add_argument(
+        "--issue-type",
+        type=str,
+        choices=["issue", "pr"],
+        default="issue",
+        help="Type of GitHub item to resolve: 'issue' or 'pr' (pull request).",
+    )
     my_args = parser.parse_args()
 
     runtime_container_image = my_args.runtime_container_image
@@ -709,9 +833,10 @@ def main():
             num_workers=my_args.num_workers,
             output_dir=my_args.output_dir,
             llm_config=llm_config,
-            prompt_template=prompt_template,  # Pass the prompt template
+            prompt_template=prompt_template,
             repo_instruction=repo_instruction,
             issue_numbers=issue_numbers,
+            issue_type=my_args.issue_type,
         )
     )
 
