@@ -26,6 +26,8 @@ mypy = "*"
 ruff = "*"
 black = "*"
 types-requests = "*"
+pre-commit = "^4.0.0"
+types-toml = "^0.10.8.20240310"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
