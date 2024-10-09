@@ -81,8 +81,13 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          PYTHONPATH: ""
         run: |
+<<<<<<< HEAD
           PYTHONPATH="" python -m openhands_resolver.resolve_issues \
+=======
+          PYTHONPATH=""python -m openhands_resolver.resolve_issues \
+>>>>>>> 91caa6a852de90ca97ea7e8c999e334b1d012a0a
             --repo ${{ github.repository }} \
             --issue-numbers ${{ env.ISSUE_NUMBER }}
 
@@ -101,6 +106,7 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          PYTHONPATH: ""
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
             PYTHONPATH="" python -m openhands_resolver.send_pull_request \
