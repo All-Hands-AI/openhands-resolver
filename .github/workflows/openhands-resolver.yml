@@ -83,11 +83,7 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           PYTHONPATH: ""
         run: |
-<<<<<<< HEAD
           PYTHONPATH="" python -m openhands_resolver.resolve_issues \
-=======
-          PYTHONPATH=""python -m openhands_resolver.resolve_issues \
->>>>>>> 91caa6a852de90ca97ea7e8c999e334b1d012a0a
             --repo ${{ github.repository }} \
             --issue-numbers ${{ env.ISSUE_NUMBER }}
 
