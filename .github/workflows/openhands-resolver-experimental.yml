@@ -83,14 +83,14 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           PYTHONPATH: ""
         run: |
-          PYTHONPATH="" python -m openhands_resolver.resolve_issues \
+          cd /tmp && python -m openhands_resolver.resolve_issues \
             --repo ${{ github.repository }} \
             --issue-numbers ${{ env.ISSUE_NUMBER }}
 
       - name: Check resolution result
         id: check_result
         run: |
-          if grep -q '"success":true' output/output.jsonl; then
+          if cd /tmp && grep -q '"success":true' output/output.jsonl; then
             echo "RESOLUTION_SUCCESS=true" >> $GITHUB_OUTPUT
           else
             echo "RESOLUTION_SUCCESS=false" >> $GITHUB_OUTPUT
@@ -105,12 +105,12 @@ jobs:
           PYTHONPATH: ""
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
-            PYTHONPATH="" python -m openhands_resolver.send_pull_request \
+            cd /tmp && python -m openhands_resolver.send_pull_request \
               --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type draft | tee pr_result.txt && \
               grep "draft created" pr_result.txt | sed 's/.*\///g' > pr_number.txt
           else
-            PYTHONPATH="" python -m openhands_resolver.send_pull_request \
+            cd /tmp && python -m openhands_resolver.send_pull_request \
               --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type branch \
               --send-on-failure | tee branch_result.txt && \
