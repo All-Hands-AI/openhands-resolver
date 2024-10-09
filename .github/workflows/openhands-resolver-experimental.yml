@@ -81,9 +81,8 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          PYTHONPATH: ""
         run: |
-          python -m openhands_resolver.resolve_issues \
+          PYTHONPATH="" python -m openhands_resolver.resolve_issues \
             --repo ${{ github.repository }} \
             --issue-numbers ${{ env.ISSUE_NUMBER }}
 
@@ -102,15 +101,14 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          PYTHONPATH: ""
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
-            python -m openhands_resolver.send_pull_request \
+            PYTHONPATH="" python -m openhands_resolver.send_pull_request \
               --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type draft | tee pr_result.txt && \
               grep "draft created" pr_result.txt | sed 's/.*\///g' > pr_number.txt
           else
-            python -m openhands_resolver.send_pull_request \
+            PYTHONPATH="" python -m openhands_resolver.send_pull_request \
               --issue-number ${{ env.ISSUE_NUMBER }} \
               --pr-type branch \
               --send-on-failure | tee branch_result.txt && \
