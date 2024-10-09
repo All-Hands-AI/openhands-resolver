@@ -131,9 +131,9 @@ jobs:
             
             try {
               if (success) {
-                prNumber = fs.readFileSync('pr_number.txt', 'utf8').trim();
+                prNumber = fs.readFileSync('/tmp/pr_number.txt', 'utf8').trim();
               } else {
-                branchName = fs.readFileSync('branch_name.txt', 'utf8').trim();
+                branchName = fs.readFileSync('/tmp/branch_name.txt', 'utf8').trim();
               }
             } catch (error) {
               console.error('Error reading file:', error);
