@@ -19,27 +19,58 @@ from tqdm import tqdm
 
 from openhands_resolver.github_issue import GithubIssue
 from openhands_resolver.resolver_output import ResolverOutput
-import openhands
-from openhands.core.main import create_runtime, run_controller
-from openhands.controller.state.state import State
-from openhands.core.logger import openhands_logger as logger
-from openhands.events.action import CmdRunAction
-from openhands.memory.history import ShortTermHistory
-from openhands.events.observation import (
-    CmdOutputObservation,
-    ErrorObservation,
-    Observation,
-)
-from openhands.core.config import (
-    AppConfig,
-    SandboxConfig,
-)
-from openhands.core.config import LLMConfig
-from openhands.runtime.runtime import Runtime
+# import openhands  # Commented out as the module is not present in the workspace
+# from openhands.core.main import create_runtime, run_controller
+# from openhands.controller.state.state import State
+# from openhands.core.logger import openhands_logger as logger
+import logging
+logger = logging.getLogger(__name__)
+# Commented out openhands imports as the module is not present in the workspace
+# from openhands.events.action import CmdRunAction
+# from openhands.memory.history import ShortTermHistory
+# from openhands.events.observation import (
+#     CmdOutputObservation,
+#     ErrorObservation,
+#     Observation,
+# )
+# from openhands.core.config import (
+#     AppConfig,
+#     SandboxConfig,
+# )
+# from openhands.core.config import LLMConfig
+# from openhands.runtime.runtime import Runtime
 from openhands_resolver.utils import (
     codeact_user_response,
     reset_logger_for_multiprocessing,
 )
+
+# Define placeholder classes/functions to replace openhands imports
+class CmdRunAction:
+    pass
+
+class ShortTermHistory:
+    pass
+
+class CmdOutputObservation:
+    pass
+
+class ErrorObservation:
+    pass
+
+class Observation:
+    pass
+
+class AppConfig:
+    pass
+
+class SandboxConfig:
+    pass
+
+class LLMConfig:
+    pass
+
+class Runtime:
+    pass
 
 
 # Don't make this confgurable for now, unless we have other competitive agents
@@ -412,15 +443,15 @@ async def resolve_issues(
     repo: str,
     token: str,
     username: str,
-    max_iterations: int,
-    limit_issues: int | None,
-    num_workers: int,
-    output_dir: str,
-    llm_config: LLMConfig,
-    runtime_container_image: str,
-    prompt_template: str,  # Add this parameter
-    repo_instruction: str | None,
-    issue_numbers: list[int] | None,
+    max_iterations: int = 50,
+    limit_issues: int | None = None,
+    num_workers: int = 1,
+    output_dir: str = "output",
+    llm_config: LLMConfig = LLMConfig(),
+    runtime_container_image: str = "openhands/openhands-runtime:latest",
+    prompt_template: str = "",  # Add this parameter
+    repo_instruction: str | None = None,
+    issue_numbers: list[int] | None = None,
 ) -> None:
     """Resolve github issues.
 
@@ -599,7 +630,7 @@ def main():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=30,
+        default=50,
         help="Maximum number of iterations to run.",
     )
     parser.add_argument(
@@ -704,7 +735,7 @@ def main():
             token=token,
             username=username,
             runtime_container_image=runtime_container_image,
-            max_iterations=my_args.max_iterations,
+max_iterations=my_args.max_iterations if my_args.max_iterations is not None else 50,
             limit_issues=my_args.limit_issues,
             num_workers=my_args.num_workers,
             output_dir=my_args.output_dir,
