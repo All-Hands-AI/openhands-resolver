@@ -332,6 +332,104 @@ async def process_issue(
     )
     return output
 
+def run_github_graphql_query(query: str, variables: dict, token: str) -> dict:
+
+    url = "https://api.github.com/graphql"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+    response.raise_for_status()  # Raise an error for bad requests (4xx or 5xx)
+    
+    return response.json()
+
+
+def download_pr_metadata(owner: str, repo: str, token: str, pull_number: int):
+    
+    """
+        Run a GraphQL query against the GitHub API for information on 
+            1. unresolved review comments
+            2. referenced issues the pull request would close
+
+        Args:
+            query: The GraphQL query as a string.
+            variables: A dictionary of variables for the query.
+            token: Your GitHub personal access token.
+
+        Returns:
+            The JSON response from the GitHub API.
+    """
+    # Using graphql as REST API doesn't indicate resolved status for review comments
+    # TODO: grabbing the first 10 issues, 100 review threads, and 100 coments; add pagination to retrieve all
+    query = """
+            query($owner: String!, $repo: String!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pr) {
+                        closingIssuesReferences(first: 10) {
+                            edges {
+                                node {
+                                    body
+                                }
+                            }
+                        }
+                        url
+                        reviewThreads(first: 100) {
+                            edges{
+                                node{
+                                    isResolved
+                                    comments(first: 100) {
+                                        totalCount
+                                        nodes {
+                                            body
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
+
+
+    variables = {
+        "owner": owner,
+        "repo": repo,
+        "pr": pull_number
+    }
+
+    url = "https://api.github.com/graphql"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+    response.raise_for_status()
+    response = response.json()
+
+    # Parse the response to get closing issue references and unresolved review comments
+    pr_data = response.get("data", {}).get("repository", {}).get("pullRequest", {})
+
+    # Get closing issues
+    closing_issues = pr_data.get("closingIssuesReferences", {}).get("edges", [])
+    closing_issues_bodies = [issue["node"]["body"] for issue in closing_issues]
+
+    # Get unresolved review comments
+    unresolved_comments = []
+    review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
+    for thread in review_threads:
+        node = thread.get("node", {})
+        if not node.get("isResolved", True):  # Check if the review thread is unresolved
+            comments = node.get("comments", {}).get("nodes", [])
+            unresolved_comments.extend([comment["body"] for comment in comments])
+
+    return closing_issues_bodies, unresolved_comments
+
+
 
 def download_issues_from_github(
     owner: str, repo: str, token: str, issue_type: str | None
@@ -386,18 +484,30 @@ def download_issues_from_github(
         # Skip pull requests only for regular issues
         if issue_type == None and "pull_request" in issue:
             continue
+        
+        
+        
+        if issue_type == "pr":
+            closing_issues, unresolved_comments = download_pr_metadata(owner, repo, token, issue["number"])
+            issue_details = GithubIssue(
+                                owner=owner,
+                                repo=repo,
+                                number=issue["number"],
+                                title=issue["title"],
+                                body=issue["body"],
+                                closing_issues=closing_issues,
+                                review_comments=unresolved_comments
+                            )
+        else:
+            issue_details = GithubIssue(
+                                owner=owner,
+                                repo=repo,
+                                number=issue["number"],
+                                title=issue["title"],
+                                body=issue["body"],
+                            )
             
-        converted_issues.append(
-                GithubIssue(
-                    owner=owner,
-                    repo=repo,
-                    number=issue["number"],
-                    title=issue["title"],
-                    body=issue["body"],
-                )
-            )
-            
-
+        converted_issues.append(issue_details)
     return converted_issues
 
 
@@ -452,6 +562,7 @@ async def resolve_issues(
     issues: list[GithubIssue] = download_issues_from_github(
         owner, repo, token, issue_type=issue_type
     )
+    
     if issue_numbers is not None:
         issues = [issue for issue in issues if issue.number in issue_numbers]
         logger.info(f"Limiting resolving to issues {issue_numbers}.")

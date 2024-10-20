@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class GithubIssue(BaseModel):
@@ -7,3 +8,5 @@ class GithubIssue(BaseModel):
     number: int
     title: str
     body: str
+    closing_issues: Optional[list[str]] = []
+    review_comments: Optional[list[str]] = []

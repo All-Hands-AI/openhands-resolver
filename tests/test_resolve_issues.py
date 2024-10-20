@@ -129,7 +129,8 @@ def test_download_issues_from_github():
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 3]
     assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
-
+    assert [len(issue.review_comments) for issue in issues] == [0, 0]
+    assert [len(issue.closing_issues) for issue in issues] == [0, 0]
 
     issue_type = "pr"
     mock_response = MagicMock()
@@ -143,14 +144,62 @@ def test_download_issues_from_github():
     ]
     mock_response.raise_for_status = MagicMock()
 
+    # Mock for GraphQL request (for download_pr_metadata)
+    mock_graphql_response = MagicMock()
+    mock_graphql_response.json.side_effect = lambda: {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "closingIssuesReferences": {
+                        "edges": [
+                            {"node": {"body": "Issue 1 body"}},
+                            {"node": {"body": "Issue 2 body"}}
+                        ]
+                    },
+                    "reviewThreads": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {"body": "Unresolved comment 1"},
+                                            {"body": "Unresolved comment 2"}
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                "node": {
+                                    "isResolved": True,
+                                    "comments": {
+                                        "nodes": [
+                                            {"body": "Resolved comment 1"},
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+    mock_graphql_response.raise_for_status = MagicMock()
+
+
     with patch('requests.get', return_value=mock_response):
-        issues = download_issues_from_github("owner", "repo", "token", issue_type)
+        with patch('requests.post', return_value=mock_graphql_response):  
+            issues = download_issues_from_github("owner", "repo", "token", issue_type)
 
     assert len(issues) == 3
     assert issue_type == "pr"
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 2, 3]
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
+    assert issues[0].review_comments == ["Unresolved comment 1", "Unresolved comment 2"]
+    assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
 
 
 @pytest.mark.asyncio
