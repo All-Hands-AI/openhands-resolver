@@ -334,7 +334,7 @@ async def process_issue(
 
 
 def download_issues_from_github(
-    owner: str, repo: str, token: str
+    owner: str, repo: str, token: str, issue_type: str | None
 ) -> list[GithubIssue]:
     """Download issues from Github.
 
@@ -346,7 +346,12 @@ def download_issues_from_github(
     Returns:
         List of Github issues.
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+
+    if issue_type == None:
+        url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+    else:
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+    
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
@@ -377,18 +382,22 @@ def download_issues_from_github(
                 f"Skipping issue {issue} as it is missing number, title, or body."
             )
             continue
-        # Skip pull requests
-        if "pull_request" in issue:
+
+        # Skip pull requests only for regular issues
+        if issue_type == None and "pull_request" in issue:
             continue
+            
         converted_issues.append(
-            GithubIssue(
-                owner=owner,
-                repo=repo,
-                number=issue["number"],
-                title=issue["title"],
-                body=issue["body"],
+                GithubIssue(
+                    owner=owner,
+                    repo=repo,
+                    number=issue["number"],
+                    title=issue["title"],
+                    body=issue["body"],
+                )
             )
-        )
+            
+
     return converted_issues
 
 
@@ -421,6 +430,7 @@ async def resolve_issues(
     prompt_template: str,  # Add this parameter
     repo_instruction: str | None,
     issue_numbers: list[int] | None,
+    issue_type: str | None,
 ) -> None:
     """Resolve github issues.
 
@@ -440,7 +450,7 @@ async def resolve_issues(
 
     # Load dataset
     issues: list[GithubIssue] = download_issues_from_github(
-        owner, repo, token
+        owner, repo, token, issue_type=issue_type
     )
     if issue_numbers is not None:
         issues = [issue for issue in issues if issue.number in issue_numbers]
@@ -656,6 +666,14 @@ def main():
         default=None,
         help="Path to the repository instruction file in text format.",
     )
+
+    parser.add_argument(
+        "--issue-type",
+        type=str,
+        default=None,
+        help="Type of issue to resolve, either open issue or pr comments.",
+    )
+
     my_args = parser.parse_args()
 
     runtime_container_image = my_args.runtime_container_image
@@ -697,6 +715,12 @@ def main():
     if my_args.issue_numbers:
         issue_numbers = [int(number) for number in my_args.issue_numbers.split(",")]
 
+    issue_type = None
+    if my_args.issue_type:
+        issue_type = my_args.issue_type
+        if issue_type != "pr":
+            raise ValueError("Set issue-type to 'pr' or leave empty")
+
     asyncio.run(
         resolve_issues(
             owner=owner,
@@ -712,6 +736,7 @@ def main():
             prompt_template=prompt_template,  # Pass the prompt template
             repo_instruction=repo_instruction,
             issue_numbers=issue_numbers,
+            issue_type=issue_type
         )
     )
 

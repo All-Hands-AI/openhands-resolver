@@ -108,6 +108,8 @@ def test_initialize_runtime():
 
 
 def test_download_issues_from_github():
+    issue_type = None
+
     mock_response = MagicMock()
     mock_response.json.side_effect = [
         [
@@ -120,12 +122,34 @@ def test_download_issues_from_github():
     mock_response.raise_for_status = MagicMock()
 
     with patch('requests.get', return_value=mock_response):
-        issues = download_issues_from_github("owner", "repo", "token")
+        issues = download_issues_from_github("owner", "repo", "token", issue_type)
 
     assert len(issues) == 2
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 3]
     assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
+
+
+    issue_type = "pr"
+    mock_response = MagicMock()
+    mock_response.json.side_effect = [
+        [
+            {"number": 1, "title": "PR 1", "body": "This is a pull request"},
+            {"number": 2, "title": "My PR", "body": "This is another pull request"},
+            {"number": 3, "title": "PR 3", "body": "Final PR"},
+        ],
+        None,
+    ]
+    mock_response.raise_for_status = MagicMock()
+
+    with patch('requests.get', return_value=mock_response):
+        issues = download_issues_from_github("owner", "repo", "token", issue_type)
+
+    assert len(issues) == 3
+    assert all(isinstance(issue, GithubIssue) for issue in issues)
+    assert [issue.number for issue in issues] == [1, 2, 3]
+    assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
+
 
 @pytest.mark.asyncio
 async def test_complete_runtime():
