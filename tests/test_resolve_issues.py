@@ -52,6 +52,10 @@ def mock_os():
 def mock_prompt_template():
     return "Issue: {{ body }}\n\nPlease fix this issue."
 
+@pytest.fixture
+def mock_followup_prompt_template():
+    return "Issue context: {{ issues }}\n\nFollowup feedback {{ body }}\n\nPlease fix this issue."
+
 
 def test_create_git_patch(mock_subprocess, mock_os):
     mock_subprocess.return_value = b"abcdef1234567890"
@@ -318,7 +322,8 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
         mock_guess_success.assert_called_once()
 
 
-def test_get_instruction(mock_prompt_template):
+def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
+    issue_type = None
     issue = GithubIssue(
         owner="test_owner",
         repo="test_repo",
@@ -326,10 +331,28 @@ def test_get_instruction(mock_prompt_template):
         title="Test Issue",
         body="This is a test issue",
     )
-    instruction = get_instruction(issue, mock_prompt_template, None)
+    instruction = get_instruction(issue, mock_prompt_template, None, issue_type)
     expected_instruction = "Issue: This is a test issue\n\nPlease fix this issue."
+    
+    assert issue_type == None
     assert instruction == expected_instruction
 
+    issue_type = "pr"
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=123,
+        title="Test Issue",
+        body="This is a test issue",
+        closing_issues=["Issue 1 fix the type"],
+        review_comments=["There is still a typo 'pthon' instead of 'python'"],
+    )
+
+    instruction = get_instruction(issue, mock_followup_prompt_template, None, issue_type)
+    expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
+
+    assert issue_type == "pr"
+    assert instruction == expected_instruction
 
 def test_file_instruction():
     issue = GithubIssue(

@@ -13,6 +13,7 @@ import os
 import pathlib
 import subprocess
 import jinja2
+import json
 
 from tqdm import tqdm
 
@@ -197,9 +198,16 @@ def get_instruction(
     issue: GithubIssue,
     prompt_template: str,
     repo_instruction: str | None = None,
+    issue_type: str | None = None
 ):  # Prepare instruction
     template = jinja2.Template(prompt_template)
-    instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
+    if issue_type == None:
+        instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
+    else:
+        issues_context = json.dumps(issue.closing_issues, indent=4)
+        comment_chain = json.dumps(issue.review_comments, indent=4)
+        instruction = template.render(issues=issues_context, body=comment_chain, repo_instruction=repo_instruction)
+
     return instruction
 
 
@@ -254,6 +262,7 @@ async def process_issue(
     prompt_template: str,
     repo_instruction: str | None = None,
     reset_logger: bool = True,
+    issue_type: str | None = None
 ) -> ResolverOutput:
 
     # Setup the logger properly, so you can run multi-processing to parallelize processing
@@ -292,7 +301,7 @@ async def process_issue(
     runtime = create_runtime(config, sid=f"{issue.number}")
     initialize_runtime(runtime)
 
-    instruction = get_instruction(issue, prompt_template, repo_instruction)
+    instruction = get_instruction(issue, prompt_template, repo_instruction, issue_type)
 
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     state: State | None = await run_controller(
@@ -810,13 +819,6 @@ def main():
         base_url=my_args.llm_base_url or os.environ.get("LLM_BASE_URL", None),
     )
 
-    # Read the prompt template
-    prompt_file = my_args.prompt_file
-    if prompt_file is None:
-        prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-with-tests.jinja")
-    with open(prompt_file, 'r') as f:
-        prompt_template = f.read()
-
     repo_instruction = None
     if my_args.repo_instruction_file:
         with open(my_args.repo_instruction_file, 'r') as f:
@@ -831,6 +833,17 @@ def main():
         issue_type = my_args.issue_type
         if issue_type != "pr":
             raise ValueError("Set issue-type to 'pr' or leave empty")
+        
+
+    # Read the prompt template
+    prompt_file = my_args.prompt_file
+    if prompt_file is None:
+        if issue_type == None:
+            prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-with-tests.jinja")
+        else:
+            prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-followup.jinja") 
+    with open(prompt_file, 'r') as f:
+        prompt_template = f.read()
 
     asyncio.run(
         resolve_issues(
