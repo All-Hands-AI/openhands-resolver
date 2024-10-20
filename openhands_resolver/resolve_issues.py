@@ -687,6 +687,7 @@ async def resolve_issues(
                     prompt_template,
                     repo_instruction,
                     bool(num_workers > 1),
+                    issue_type=issue_type
                 ),
                 output_fp,
                 pbar,
