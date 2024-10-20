@@ -125,6 +125,7 @@ def test_download_issues_from_github():
         issues = download_issues_from_github("owner", "repo", "token", issue_type)
 
     assert len(issues) == 2
+    assert issue_type == None
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 3]
     assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
@@ -146,6 +147,7 @@ def test_download_issues_from_github():
         issues = download_issues_from_github("owner", "repo", "token", issue_type)
 
     assert len(issues) == 3
+    assert issue_type == "pr"
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 2, 3]
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
