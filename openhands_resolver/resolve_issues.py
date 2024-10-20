@@ -438,7 +438,15 @@ def download_pr_metadata(owner: str, repo: str, token: str, pull_number: int):
         node = thread.get("node", {})
         if not node.get("isResolved", True):  # Check if the review thread is unresolved
             comments = node.get("comments", {}).get("nodes", [])
-            unresolved_comments.extend([comment["body"] for comment in comments])
+            message = ""
+            for i, comment in enumerate(comments):
+                if i == len(comments) - 1:  # Check if it's the last comment in the thread
+                    if len(comments) > 1:
+                        message += "---\n"  # Add "---" before the last message if there's more than one comment
+                    message += "latest feedback:\n" + comment["body"] + "\n"
+                else:
+                    message += comment["body"] + "\n"  # Add each comment in a new line
+            unresolved_comments.append(message)
 
     return closing_issues_bodies, unresolved_comments
 

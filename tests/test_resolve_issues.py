@@ -168,7 +168,7 @@ def test_download_issues_from_github():
                                     "comments": {
                                         "nodes": [
                                             {"body": "Unresolved comment 1"},
-                                            {"body": "Unresolved comment 2"}
+                                            {"body": "Follow up thread"}
                                         ]
                                     }
                                 }
@@ -179,6 +179,16 @@ def test_download_issues_from_github():
                                     "comments": {
                                         "nodes": [
                                             {"body": "Resolved comment 1"},
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                "node": {
+                                    "isResolved": False,
+                                    "comments": {
+                                        "nodes": [
+                                            {"body": "Unresolved comment 3"},
                                         ]
                                     }
                                 }
@@ -203,7 +213,7 @@ def test_download_issues_from_github():
     assert [issue.number for issue in issues] == [1, 2, 3]
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
     assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
-    assert issues[0].review_comments == ["Unresolved comment 1", "Unresolved comment 2"]
+    assert issues[0].review_comments == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
 
 
