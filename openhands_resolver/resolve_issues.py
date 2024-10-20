@@ -272,7 +272,11 @@ async def process_issue(
     else:
         logger.info(f'Starting fixing issue {issue.number}.')
 
-    workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
+    if issue_type == None:
+        workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
+    else:
+        workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue_type}_{issue.number}")
+
     # Get the absolute path of the workspace base
     workspace_base = os.path.abspath(workspace_base)
     # write the repo to the workspace
@@ -498,6 +502,7 @@ def download_issues_from_github(
         
         if issue_type == "pr":
             closing_issues, unresolved_comments = download_pr_metadata(owner, repo, token, issue["number"])
+            head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
                                 owner=owner,
                                 repo=repo,
@@ -505,7 +510,8 @@ def download_issues_from_github(
                                 title=issue["title"],
                                 body=issue["body"],
                                 closing_issues=closing_issues,
-                                review_comments=unresolved_comments
+                                review_comments=unresolved_comments,
+                                head_branch=head_branch
                             )
         else:
             issue_details = GithubIssue(
@@ -659,6 +665,17 @@ async def resolve_issues(
         # Replace the ProcessPoolExecutor with asyncio.gather
         tasks = []
         for issue in issues:
+            
+            # checkout to pr branch
+            if issue_type == "pr":
+                logger.info(f"Checking out to PR branch {issue.head_branch} for issue {issue.number}")
+                subprocess.check_call(
+                    ["git", "fetch", "origin", f"pull/{issue.number}/head"],
+                    cwd=repo_dir,
+                )
+
+
+
             task = update_progress(
                 process_issue(
                     issue,

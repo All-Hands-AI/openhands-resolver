@@ -140,9 +140,9 @@ def test_download_issues_from_github():
     mock_response = MagicMock()
     mock_response.json.side_effect = [
         [
-            {"number": 1, "title": "PR 1", "body": "This is a pull request"},
-            {"number": 2, "title": "My PR", "body": "This is another pull request"},
-            {"number": 3, "title": "PR 3", "body": "Final PR"},
+            {"number": 1, "title": "PR 1", "body": "This is a pull request", "head": {"ref": "b1"}},
+            {"number": 2, "title": "My PR", "body": "This is another pull request", "head": {"ref": "b2"}},
+            {"number": 3, "title": "PR 3", "body": "Final PR", "head": {"ref": "b3"}},
         ],
         None,
     ]
@@ -202,6 +202,7 @@ def test_download_issues_from_github():
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 2, 3]
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
+    assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
     assert issues[0].review_comments == ["Unresolved comment 1", "Unresolved comment 2"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
 

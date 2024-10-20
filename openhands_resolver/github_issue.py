@@ -10,3 +10,4 @@ class GithubIssue(BaseModel):
     body: str
     closing_issues: Optional[list[str]] = []
     review_comments: Optional[list[str]] = []
+    head_branch: Optional[str] = None
