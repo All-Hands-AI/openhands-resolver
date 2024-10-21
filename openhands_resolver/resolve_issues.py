@@ -197,16 +197,20 @@ async def complete_runtime(
 def get_instruction(
     issue: GithubIssue,
     prompt_template: str,
+    issue_type: str,
     repo_instruction: str | None = None,
-    issue_type: str | None = None
 ):  # Prepare instruction
     template = jinja2.Template(prompt_template)
-    if issue_type == None:
+    if issue_type == "issue":
         instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
-    else:
+    elif issue_type == "pr":
+        if issue.closing_issues is None or issue.review_comments is None:
+            raise ValueError(f"issue.closing_issues or issue.review_comments is None")
         issues_context = json.dumps(issue.closing_issues, indent=4)
         comment_chain = json.dumps(issue.review_comments, indent=4)
         instruction = template.render(issues=issues_context, body=comment_chain, repo_instruction=repo_instruction)
+    else:
+        raise ValueError(f"Invalid issue type {issue_type}")
 
     return instruction
 
@@ -260,9 +264,9 @@ async def process_issue(
     output_dir: str,
     runtime_container_image: str,
     prompt_template: str,
+    issue_type: str,
     repo_instruction: str | None = None,
     reset_logger: bool = True,
-    issue_type: str | None = None
 ) -> ResolverOutput:
 
     # Setup the logger properly, so you can run multi-processing to parallelize processing
@@ -272,10 +276,7 @@ async def process_issue(
     else:
         logger.info(f'Starting fixing issue {issue.number}.')
 
-    if issue_type == None:
-        workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
-    else:
-        workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue_type}_{issue.number}")
+    workspace_base = os.path.join(output_dir, "workspace", f"{issue_type}_{issue.number}")
 
     # Get the absolute path of the workspace base
     workspace_base = os.path.abspath(workspace_base)
@@ -305,7 +306,7 @@ async def process_issue(
     runtime = create_runtime(config, sid=f"{issue.number}")
     initialize_runtime(runtime)
 
-    instruction = get_instruction(issue, prompt_template, repo_instruction, issue_type)
+    instruction = get_instruction(issue, prompt_template, issue_type, repo_instruction)
 
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     state: State | None = await run_controller(
@@ -561,9 +562,9 @@ async def resolve_issues(
     llm_config: LLMConfig,
     runtime_container_image: str,
     prompt_template: str,  # Add this parameter
+    issue_type: str,
     repo_instruction: str | None,
     issue_numbers: list[int] | None,
-    issue_type: str | None,
 ) -> None:
     """Resolve github issues.
 
@@ -693,9 +694,9 @@ async def resolve_issues(
                     output_dir,
                     runtime_container_image,
                     prompt_template,
+                    issue_type,
                     repo_instruction,
                     bool(num_workers > 1),
-                    issue_type=issue_type
                 ),
                 output_fp,
                 pbar,
@@ -816,7 +817,8 @@ def main():
     parser.add_argument(
         "--issue-type",
         type=str,
-        default=None,
+        default="issue",
+        choices=["issue", "pr"],
         help="Type of issue to resolve, either open issue or pr comments.",
     )
 
@@ -853,13 +855,6 @@ def main():
     issue_numbers = None
     if my_args.issue_numbers:
         issue_numbers = [int(number) for number in my_args.issue_numbers.split(",")]
-
-    issue_type = None
-    if my_args.issue_type:
-        issue_type = my_args.issue_type
-        if issue_type != "pr":
-            raise ValueError("Set issue-type to 'pr' or leave empty")
-        
 
     # Read the prompt template
     prompt_file = my_args.prompt_file
