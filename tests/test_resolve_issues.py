@@ -461,7 +461,7 @@ def test_guess_success():
 
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
         success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
-        assert comment_success == None
+        assert comment_success is None
         assert issue_type == "issue"
         assert success
         assert explanation == "Issue resolved successfully"
@@ -493,7 +493,7 @@ def test_guess_success_failure():
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
         success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
         print(f"success: {success}, explanation: {explanation}")
-        assert comment_success == None
+        assert comment_success is None
         assert issue_type == "issue"
         assert not success
         assert explanation == "Issue not resolved"
@@ -525,7 +525,7 @@ def test_guess_success_invalid_output():
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
         success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
         assert issue_type == "issue"
-        assert comment_success == None
+        assert comment_success is None
         assert not success
         assert explanation == "Failed to decode answer from LLM response: This is not a valid output"
 

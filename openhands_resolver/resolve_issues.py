@@ -206,7 +206,7 @@ def get_instruction(
         instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
     elif issue_type == "pr":
         if issue.closing_issues is None or issue.review_comments is None:
-            raise ValueError(f"issue.closing_issues or issue.review_comments is None")
+            raise ValueError("issue.closing_issues or issue.review_comments is None")
         issues_context = json.dumps(issue.closing_issues, indent=4)
         comment_chain = json.dumps(issue.review_comments, indent=4)
         instruction = template.render(issues=issues_context, body=comment_chain, repo_instruction=repo_instruction)
@@ -216,7 +216,7 @@ def get_instruction(
     return instruction
 
 
-def guess_success(issue: GithubIssue, issue_type: str, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, str]:
+def guess_success(issue: GithubIssue, issue_type: str, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
     """Guess if the issue is fixed based on the history and the issue description."""
     
     last_message = history.get_events_as_list()[-1].message
@@ -261,51 +261,53 @@ def guess_success(issue: GithubIssue, issue_type: str, history: ShortTermHistory
         success_list = []
         explanation_list = []
 
-        for comment in issue.review_comments:
-            formatted_comment = json.dumps(comment, indent=4)
-            prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. Determine if the feedback has been successfully resolved.
+        if issue.review_comments:
+            for comment in issue.review_comments:
+                formatted_comment = json.dumps(comment, indent=4)
+                prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. Determine if the feedback has been successfully resolved.
+                
+                Issue descriptions:
+                {issues_context}
+
+                Feedback:
+                {formatted_comment}
+
+                Last message from AI agent:
+                {last_message}
+
+                (1) has the feedback been successfully incorporated?
+                (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+
+                Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+
+                --- success
+                true/false
+
+                --- explanation
+                ...
+                """
+
+                response = litellm.completion(
+                    model=llm_config.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    api_key=llm_config.api_key,
+                    base_url=llm_config.base_url,
+                )
             
-            Issue descriptions:
-            {issues_context}
-
-            Feedback:
-            {formatted_comment}
-
-            Last message from AI agent:
-            {last_message}
-
-            (1) has the feedback been successfully incorporated?
-            (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-            --- success
-            true/false
-
-            --- explanation
-            ...
-            """
-
-            response = litellm.completion(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=llm_config.api_key,
-                base_url=llm_config.base_url,
-            )
+                answer = response.choices[0].message.content.strip()
+                pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+                match = re.search(pattern, answer)
+                if match:
+                    success_list.append(match.group(1).lower() == 'true')
+                    explanation_list.append(match.group(2))
+                else:
+                    success_list.append(False)
+                    f"Failed to decode answer from LLM response: {answer}"
+        else:
+            raise ValueError("Expected review comments to be initialized.")
         
-            answer = response.choices[0].message.content.strip()
-            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-            match = re.search(pattern, answer)
-            if match:
-                success_list.append(match.group(1).lower() == 'true')
-                explanation_list.append(match.group(2))
-            else:
-                success_list.append(False)
-                f"Failed to decode answer from LLM response: {answer}"
-       
-       
         success = all(success_list)
-        return success, success_list, explanation_list
+        return success, success_list, json.dumps(explanation_list)
             
         
 
@@ -385,15 +387,14 @@ async def process_issue(
     # determine success based on the history and the issue description
     success, comment_success, success_explanation = guess_success(issue, issue_type, state.history, llm_config)
 
-    if issue_type == "pr":
+    if issue_type == "pr" and comment_success:
         success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
-        for success_indicator, explanation in zip(comment_success, success_explanation):
+        for success_indicator, explanation in zip(comment_success, json.loads(success_explanation)):
                 status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
                 bullet_point = colored("-", "yellow")
                 success_log += f"\n{bullet_point} {status}: {explanation}"
         logger.info(success_log)
 
-        success_explanation = json.dumps(success_explanation) # stringify success explanations
 
 
     # Save the output
@@ -475,10 +476,10 @@ def download_pr_metadata(owner: str, repo: str, token: str, pull_number: int):
     
     response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
     response.raise_for_status()
-    response = response.json()
+    response_json = response.json()
 
     # Parse the response to get closing issue references and unresolved review comments
-    pr_data = response.get("data", {}).get("repository", {}).get("pullRequest", {})
+    pr_data = response_json.get("data", {}).get("repository", {}).get("pullRequest", {})
 
     # Get closing issues
     closing_issues = pr_data.get("closingIssuesReferences", {}).get("edges", [])
