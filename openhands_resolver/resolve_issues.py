@@ -257,74 +257,56 @@ def guess_success(issue: GithubIssue, issue_type: str, history: ShortTermHistory
         return False, None, f"Failed to decode answer from LLM response: {answer}"
     else:
         issues_context = json.dumps(issue.closing_issues, indent=4)
-        comment_chain = json.dumps(issue.review_comments, indent=4)
-        num_comments = len(issue.review_comments)
-        prompt = f"""You are given one or more issue descriptions, {num_comments} pieces of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. Determine if the feedback has been successfully resolved.
-        
-        Issue descriptions:
-        {issues_context}
+        success_list = []
+        explanation_list = []
 
-        Feedback:
-        {comment_chain}
-
-        Last message from AI agent:
-        {last_message}
-
-        (1) for {num_comments} pieces of feedback, has it been successfully incorporated?
-        (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-        Answer in exactly the format below. For every one of {num_comments} pieces of feedback, answer with only true or false for success. Add an explanation for every result for all {num_comments} results.
-
-        --- success
-        - true
-        - false
-
-        --- explanation
-        - ...
-        - ...
-        """
-
-        response = litellm.completion(
-            model=llm_config.model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=llm_config.api_key,
-            base_url=llm_config.base_url,
-        )
-        
-        answer = response.choices[0].message.content.strip()
-        print(answer)
-        pattern = re.compile(
-            r"---\s+success\s*\n(?P<success>(?:-\s*(?:true|false)\s*\n?)*)"
-            r"---\s+explanation\s*\n(?P<explanation>(?:-\s*.*\n?)*)",
-            re.IGNORECASE
-        )
-
-        match = pattern.search(answer)
-
-        if match:
-            # Extract all sucess
-            success_section = match.group('success')
-            success_matches = re.findall(r'-\s*(true|false)', success_section, re.IGNORECASE)
-            success_list = [s.lower() == 'true' for s in success_matches]
-
-            success = all(success_list)
-
+        for comment in issue.review_comments:
+            formatted_comment = json.dumps(comment, indent=4)
+            prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. Determine if the feedback has been successfully resolved.
             
-            # Extract all explanation strings
-            explanation_section = match.group('explanation')
-            explanation_matches = re.findall(r'-\s*(.*)', explanation_section)
-            explanation_list = [exp.strip() for exp in explanation_matches]
+            Issue descriptions:
+            {issues_context}
 
-            num_success = len(success_list)
-            num_explanations = len(explanation_list)
+            Feedback:
+            {formatted_comment}
 
-            # check number of success and explanation indicators match expected number
-            if num_comments == num_success and num_comments == num_explanations:
-                return success, success_list, json.dumps(explanation_list)
-            
-            return False, None, f"Failed to guess success for correct number of comments (actual number {num_comments} vs guessed success/explanations {num_success}/{num_explanations}; answer: {answer})"
+            Last message from AI agent:
+            {last_message}
+
+            (1) has the feedback been successfully incorporated?
+            (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+
+            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+
+            --- success
+            true/false
+
+            --- explanation
+            ...
+            """
+
+            response = litellm.completion(
+                model=llm_config.model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url,
+            )
         
-        return False, None, f"Failed to decode answer from LLM response: {answer}"
+            answer = response.choices[0].message.content.strip()
+            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+            match = re.search(pattern, answer)
+            if match:
+                success_list.append(match.group(1).lower() == 'true')
+                explanation_list.append(match.group(2))
+            else:
+                success_list.append(False)
+                f"Failed to decode answer from LLM response: {answer}"
+       
+       
+        success = all(success_list)
+        return success, success_list, explanation_list
+            
+        
 
 async def process_issue(
     issue: GithubIssue,
@@ -401,6 +383,19 @@ async def process_issue(
 
     # determine success based on the history and the issue description
     success, comment_success, success_explanation = guess_success(issue, issue_type, state.history, llm_config)
+
+    if issue_type == "pr":
+        success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
+        for success_indicator, explanation in zip(comment_success, success_explanation):
+                status = "[X]" if success_indicator else "[ ]"
+                success_log += f"\n- {status}: {explanation}"
+        logger.info(success_log)
+
+
+        success_explanation = json.dumps(success_explanation) # stringify success explanations
+
+
+
 
     # Save the output
     output = ResolverOutput(
