@@ -112,7 +112,7 @@ def test_initialize_runtime():
 
 
 def test_download_issues_from_github():
-    issue_type = None
+    issue_type = "issue"
 
     mock_response = MagicMock()
     mock_response.json.side_effect = [
@@ -129,12 +129,13 @@ def test_download_issues_from_github():
         issues = download_issues_from_github("owner", "repo", "token", issue_type)
 
     assert len(issues) == 2
-    assert issue_type == None
+    assert issue_type == "issue"
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 3]
     assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
-    assert [len(issue.review_comments) for issue in issues] == [0, 0]
-    assert [len(issue.closing_issues) for issue in issues] == [0, 0]
+    assert [issue.review_comments for issue in issues] == [None, None]
+    assert [issue.closing_issues for issue in issues] == [None, None]
+
 
     issue_type = "pr"
     mock_response = MagicMock()
@@ -303,6 +304,8 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
         "openhands_resolver.resolve_issues.logger"
     ):
 
+        issue_type = "issue"
+    
         # Call the function
         result = await process_issue(
             issue,
@@ -312,11 +315,13 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
             mock_output_dir,
             runtime_container_image,
             mock_prompt_template,  # Add this argument
+            issue_type,
             repo_instruction,
             reset_logger=False
         )
 
         # Assert the result
+        assert issue_type == "issue"
         assert isinstance(result, ResolverOutput)
         assert result.issue == issue
         assert result.base_commit == base_commit
@@ -334,7 +339,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
 
 
 def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
-    issue_type = None
+    issue_type = "issue"
     issue = GithubIssue(
         owner="test_owner",
         repo="test_repo",
@@ -342,10 +347,10 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         title="Test Issue",
         body="This is a test issue",
     )
-    instruction = get_instruction(issue, mock_prompt_template, None, issue_type)
+    instruction = get_instruction(issue, mock_prompt_template, issue_type, None)
     expected_instruction = "Issue: This is a test issue\n\nPlease fix this issue."
     
-    assert issue_type == None
+    assert issue_type == "issue"
     assert instruction == expected_instruction
 
     issue_type = "pr"
@@ -359,7 +364,7 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         review_comments=["There is still a typo 'pthon' instead of 'python'"],
     )
 
-    instruction = get_instruction(issue, mock_followup_prompt_template, None, issue_type)
+    instruction = get_instruction(issue, mock_followup_prompt_template, issue_type, None)
     expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
 
     assert issue_type == "pr"
@@ -376,7 +381,9 @@ def test_file_instruction():
     # load prompt from openhands_resolver/prompts/resolve/basic.jinja
     with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
         prompt = f.read()
-    instruction = get_instruction(issue, prompt, None)
+    
+    issue_type = "issue"
+    instruction = get_instruction(issue, prompt, issue_type, None)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
@@ -387,6 +394,8 @@ IMPORTANT: You should ONLY interact with the environment provided to you AND NEV
 You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
+
+    assert issue_type == "issue"
     assert instruction == expected_instruction
 
 
@@ -404,7 +413,9 @@ def test_file_instruction_with_repo_instruction():
     # load repo instruction from openhands_resolver/prompts/repo_instructions/all-hands-ai___openhands-resolver.txt
     with open("openhands_resolver/prompts/repo_instructions/all-hands-ai___openhands-resolver.txt", "r") as f:
         repo_instruction = f.read()
-    instruction = get_instruction(issue, prompt, repo_instruction)
+    
+    issue_type = "issue"
+    instruction = get_instruction(issue, prompt, issue_type, repo_instruction)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 

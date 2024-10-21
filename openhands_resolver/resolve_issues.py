@@ -440,7 +440,7 @@ def download_pr_metadata(owner: str, repo: str, token: str, pull_number: int):
 
 
 def download_issues_from_github(
-    owner: str, repo: str, token: str, issue_type: str | None
+    owner: str, repo: str, token: str, issue_type: str
 ) -> list[GithubIssue]:
     """Download issues from Github.
 
@@ -453,10 +453,11 @@ def download_issues_from_github(
         List of Github issues.
     """
 
-    if issue_type == None:
+    if issue_type == "issue":
         url = f"https://api.github.com/repos/{owner}/{repo}/issues"
     else:
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+
     
     headers = {
         "Authorization": f"token {token}",
@@ -490,7 +491,7 @@ def download_issues_from_github(
             continue
 
         # Skip pull requests only for regular issues
-        if issue_type == None and "pull_request" in issue:
+        if issue_type == "issue" and "pull_request" in issue:
             continue
         
         
@@ -570,7 +571,7 @@ async def resolve_issues(
 
     # Load dataset
     issues: list[GithubIssue] = download_issues_from_github(
-        owner, repo, token, issue_type=issue_type
+        owner, repo, token, issue_type
     )
     
     if issue_numbers is not None:
@@ -842,10 +843,12 @@ def main():
     if my_args.issue_numbers:
         issue_numbers = [int(number) for number in my_args.issue_numbers.split(",")]
 
+    issue_type = my_args.issue_type
+
     # Read the prompt template
     prompt_file = my_args.prompt_file
     if prompt_file is None:
-        if issue_type == None:
+        if issue_type == "issue":
             prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-with-tests.jinja")
         else:
             prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-followup.jinja") 
@@ -865,9 +868,9 @@ def main():
             output_dir=my_args.output_dir,
             llm_config=llm_config,
             prompt_template=prompt_template,  # Pass the prompt template
+            issue_type=issue_type,
             repo_instruction=repo_instruction,
             issue_numbers=issue_numbers,
-            issue_type=issue_type
         )
     )
 
