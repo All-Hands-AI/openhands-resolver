@@ -346,20 +346,6 @@ async def process_issue(
     )
     return output
 
-def run_github_graphql_query(query: str, variables: dict, token: str) -> dict:
-
-    url = "https://api.github.com/graphql"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    
-    response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
-    response.raise_for_status()  # Raise an error for bad requests (4xx or 5xx)
-    
-    return response.json()
-
-
 def download_pr_metadata(owner: str, repo: str, token: str, pull_number: int):
     
     """
