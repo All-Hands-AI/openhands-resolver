@@ -15,6 +15,7 @@ import subprocess
 import jinja2
 import json
 
+from termcolor import colored
 from tqdm import tqdm
 
 
@@ -387,14 +388,12 @@ async def process_issue(
     if issue_type == "pr":
         success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
         for success_indicator, explanation in zip(comment_success, success_explanation):
-                status = "[X]" if success_indicator else "[ ]"
-                success_log += f"\n- {status}: {explanation}"
+                status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
+                bullet_point = colored("-", "yellow")
+                success_log += f"\n{bullet_point} {status}: {explanation}"
         logger.info(success_log)
 
-
         success_explanation = json.dumps(success_explanation) # stringify success explanations
-
-
 
 
     # Save the output
