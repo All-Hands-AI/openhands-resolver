@@ -288,7 +288,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
         last_error=None,
     )
     mock_complete_runtime.return_value = {"git_patch": "test patch"}
-    mock_guess_success.return_value = (True, "Issue resolved successfully")
+    mock_guess_success.return_value = (True, None, "Issue resolved successfully")
 
     # Patch the necessary functions
     with patch(
@@ -457,9 +457,12 @@ def test_guess_success():
 
     mock_completion_response = MagicMock()
     mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\ntrue\n--- explanation\nIssue resolved successfully"))]
-    
+    issue_type = "issue"
+
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
-        success, explanation = guess_success(mock_issue, mock_history, mock_llm_config)
+        success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
+        assert comment_success == None
+        assert issue_type == "issue"
         assert success
         assert explanation == "Issue resolved successfully"
 
@@ -485,10 +488,13 @@ def test_guess_success_failure():
 
     mock_completion_response = MagicMock()
     mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\nfalse\n--- explanation\nIssue not resolved"))]
+    issue_type = "issue"
     
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
-        success, explanation = guess_success(mock_issue, mock_history, mock_llm_config)
+        success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
         print(f"success: {success}, explanation: {explanation}")
+        assert comment_success == None
+        assert issue_type == "issue"
         assert not success
         assert explanation == "Issue not resolved"
 
@@ -514,9 +520,12 @@ def test_guess_success_invalid_output():
 
     mock_completion_response = MagicMock()
     mock_completion_response.choices = [MagicMock(message=MagicMock(content="This is not a valid output"))]
-    
+    issue_type = "issue"
+
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
-        success, explanation = guess_success(mock_issue, mock_history, mock_llm_config)
+        success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
+        assert issue_type == "issue"
+        assert comment_success == None
         assert not success
         assert explanation == "Failed to decode answer from LLM response: This is not a valid output"
 
