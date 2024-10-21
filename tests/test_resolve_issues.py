@@ -137,6 +137,7 @@ def test_download_issues_from_github():
     assert [issue.closing_issues for issue in issues] == [None, None]
 
 
+def test_download_pr_from_github():
     issue_type = "pr"
     mock_response = MagicMock()
     mock_response.json.side_effect = [
