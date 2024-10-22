@@ -194,6 +194,7 @@ class PRHandler(IssueHandler):
                                             totalCount
                                             nodes {
                                                 body
+                                                id
                                             }
                                         }
                                     }
@@ -231,6 +232,7 @@ class PRHandler(IssueHandler):
 
         # Get unresolved review comments
         unresolved_comments = []
+        last_comment_ids = []  # To store the last comment ID of each thread; agent replies to this comment
         review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
         for thread in review_threads:
             node = thread.get("node", {})
@@ -239,6 +241,7 @@ class PRHandler(IssueHandler):
                 message = ""
                 for i, comment in enumerate(comments):
                     if i == len(comments) - 1:  # Check if it's the last comment in the thread
+                        last_comment_ids.append(comment["id"]) # Store the last comment's ID
                         if len(comments) > 1:
                             message += "---\n"  # Add "---" before the last message if there's more than one comment
                         message += "latest feedback:\n" + comment["body"] + "\n"
@@ -246,7 +249,7 @@ class PRHandler(IssueHandler):
                         message += comment["body"] + "\n"  # Add each comment in a new line
                 unresolved_comments.append(message)
 
-        return closing_issues_bodies, unresolved_comments
+        return closing_issues_bodies, unresolved_comments, last_comment_ids
 
 
     # Override processing of downloaded issues
@@ -260,7 +263,7 @@ class PRHandler(IssueHandler):
                 )
                 continue            
 
-            closing_issues, unresolved_comments = self.__download_pr_metadata(issue["number"])
+            closing_issues, unresolved_comments, last_comment_ids = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
                                 owner=self.owner,
@@ -270,6 +273,7 @@ class PRHandler(IssueHandler):
                                 body=issue["body"],
                                 closing_issues=closing_issues,
                                 review_comments=unresolved_comments,
+                                last_comment_ids=last_comment_ids,
                                 head_branch=head_branch
                             )
             
