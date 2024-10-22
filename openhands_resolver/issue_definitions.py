@@ -31,6 +31,8 @@ class IssueHandlerInterface(ABC):
         """Guess if the issue has been resolved based on the agent's output."""
         pass
 
+
+
     
 class IssueHandler(IssueHandlerInterface):
     issue_type: ClassVar[str] = "issue"
@@ -192,7 +194,6 @@ class PRHandler(IssueHandler):
                                             totalCount
                                             nodes {
                                                 body
-                                                id
                                             }
                                         }
                                     }
@@ -230,8 +231,6 @@ class PRHandler(IssueHandler):
 
         # Get unresolved review comments
         unresolved_comments = []
-        last_comment_ids = []  # To store the last comment ID of each thread; agent replies to this comment
-
         review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
         for thread in review_threads:
             node = thread.get("node", {})
@@ -240,7 +239,6 @@ class PRHandler(IssueHandler):
                 message = ""
                 for i, comment in enumerate(comments):
                     if i == len(comments) - 1:  # Check if it's the last comment in the thread
-                        last_comment_ids.append(comment["id"]) # Store the last comment's ID
                         if len(comments) > 1:
                             message += "---\n"  # Add "---" before the last message if there's more than one comment
                         message += "latest feedback:\n" + comment["body"] + "\n"
@@ -248,7 +246,7 @@ class PRHandler(IssueHandler):
                         message += comment["body"] + "\n"  # Add each comment in a new line
                 unresolved_comments.append(message)
 
-        return closing_issues_bodies, unresolved_comments, last_comment_ids
+        return closing_issues_bodies, unresolved_comments
 
 
     # Override processing of downloaded issues
@@ -262,7 +260,7 @@ class PRHandler(IssueHandler):
                 )
                 continue            
 
-            closing_issues, unresolved_comments, last_comment_ids = self.__download_pr_metadata(issue["number"])
+            closing_issues, unresolved_comments = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
                                 owner=self.owner,
@@ -272,7 +270,6 @@ class PRHandler(IssueHandler):
                                 body=issue["body"],
                                 closing_issues=closing_issues,
                                 review_comments=unresolved_comments,
-                                last_comment_ids=last_comment_ids,
                                 head_branch=head_branch
                             )
             
@@ -348,26 +345,3 @@ class PRHandler(IssueHandler):
         
         success = all(success_list)
         return success, success_list, json.dumps(explanation_list)
-    
-
-    def __reply_to_comment(self, pr_number: int, comment_id: int, reply: str):
-        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/comments"
-
-        headers = {
-            'Authorization': 'Bearer YOUR_GITHUB_TOKEN',
-            'Content-Type': 'application/json'
-        }
-
-        data = {
-            "body": reply,
-            "in_reply_to_id": comment_id  # This is the comment ID you extracted from the GraphQL query
-        }
-
-        response = requests.post(url, json=data, headers=headers)
-        if response.status_code == 201:
-            print(f"Successfully replied to comment ID {comment_id}")
-        else:
-            print(f"Failed to reply: {response.status_code}, {response.text}")
-
-    def send_pull_request(self):
-        pass

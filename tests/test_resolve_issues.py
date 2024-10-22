@@ -168,8 +168,8 @@ def test_download_pr_from_github():
                                     "isResolved": False,
                                     "comments": {
                                         "nodes": [
-                                            {"body": "Unresolved comment 1", "id": 1},
-                                            {"body": "Follow up thread", "id": 2}
+                                            {"body": "Unresolved comment 1"},
+                                            {"body": "Follow up thread"}
                                         ]
                                     }
                                 }
@@ -179,7 +179,7 @@ def test_download_pr_from_github():
                                     "isResolved": True,
                                     "comments": {
                                         "nodes": [
-                                            {"body": "Resolved comment 1", "id": 3},
+                                            {"body": "Resolved comment 1"},
                                         ]
                                     }
                                 }
@@ -189,7 +189,7 @@ def test_download_pr_from_github():
                                     "isResolved": False,
                                     "comments": {
                                         "nodes": [
-                                            {"body": "Unresolved comment 3", "id": 4},
+                                            {"body": "Unresolved comment 3"},
                                         ]
                                     }
                                 }
@@ -216,7 +216,6 @@ def test_download_pr_from_github():
     assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
     assert issues[0].review_comments == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
-    assert issues[0].last_comment_ids == [2, 4]
 
 
 @pytest.mark.asyncio
