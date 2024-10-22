@@ -13,7 +13,9 @@ import os
 import pathlib
 import subprocess
 import jinja2
+import json
 
+from termcolor import colored
 from tqdm import tqdm
 
 
@@ -196,53 +198,118 @@ async def complete_runtime(
 def get_instruction(
     issue: GithubIssue,
     prompt_template: str,
+    issue_type: str,
     repo_instruction: str | None = None,
 ):  # Prepare instruction
     template = jinja2.Template(prompt_template)
-    instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
+    if issue_type == "issue":
+        instruction = template.render(body=issue.body, repo_instruction=repo_instruction)
+    elif issue_type == "pr":
+        if issue.closing_issues is None or issue.review_comments is None:
+            raise ValueError("issue.closing_issues or issue.review_comments is None")
+        issues_context = json.dumps(issue.closing_issues, indent=4)
+        comment_chain = json.dumps(issue.review_comments, indent=4)
+        instruction = template.render(issues=issues_context, body=comment_chain, repo_instruction=repo_instruction)
+    else:
+        raise ValueError(f"Invalid issue type {issue_type}")
+
     return instruction
 
 
-def guess_success(issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, str]:
+def guess_success(issue: GithubIssue, issue_type: str, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
     """Guess if the issue is fixed based on the history and the issue description."""
     
     last_message = history.get_events_as_list()[-1].message
+    if issue_type == "issue":
     
-    prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
+        prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
 
-Issue description:
-{issue.body}
+        Issue description:
+        {issue.body}
 
-Last message from AI agent:
-{last_message}
+        Last message from AI agent:
+        {last_message}
 
-(1) has the issue been successfully resolved?
-(2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
+        (1) has the issue been successfully resolved?
+        (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
 
-Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+        Answer in exactly the format below, with only true or false for success, and an explanation of the result.
 
---- success
-true/false
+        --- success
+        true/false
 
---- explanation
-...
-"""
+        --- explanation
+        ...
+        """
 
-    response = litellm.completion(
-        model=llm_config.model,
-        messages=[{"role": "user", "content": prompt}],
-        api_key=llm_config.api_key,
-        base_url=llm_config.base_url,
-    )
-    
-    answer = response.choices[0].message.content.strip()
-    pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-    match = re.search(pattern, answer)
-    if match:
-        return match.group(1).lower() == 'true', match.group(2)
+        response = litellm.completion(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+        )
+        
+        answer = response.choices[0].message.content.strip()
+        pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+        match = re.search(pattern, answer)
+        if match:
+            return match.group(1).lower() == 'true', None, match.group(2)
+        
+        return False, None, f"Failed to decode answer from LLM response: {answer}"
     else:
-        return False, f"Failed to decode answer from LLM response: {answer}"
+        issues_context = json.dumps(issue.closing_issues, indent=4)
+        success_list = []
+        explanation_list = []
 
+        if issue.review_comments:
+            for comment in issue.review_comments:
+                formatted_comment = json.dumps(comment, indent=4)
+                prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. Determine if the feedback has been successfully resolved.
+                
+                Issue descriptions:
+                {issues_context}
+
+                Feedback:
+                {formatted_comment}
+
+                Last message from AI agent:
+                {last_message}
+
+                (1) has the feedback been successfully incorporated?
+                (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+
+                Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+
+                --- success
+                true/false
+
+                --- explanation
+                ...
+                """
+
+                response = litellm.completion(
+                    model=llm_config.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    api_key=llm_config.api_key,
+                    base_url=llm_config.base_url,
+                )
+            
+                answer = response.choices[0].message.content.strip()
+                pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+                match = re.search(pattern, answer)
+                if match:
+                    success_list.append(match.group(1).lower() == 'true')
+                    explanation_list.append(match.group(2))
+                else:
+                    success_list.append(False)
+                    f"Failed to decode answer from LLM response: {answer}"
+        else:
+            raise ValueError("Expected review comments to be initialized.")
+        
+        success = all(success_list)
+        return success, success_list, json.dumps(explanation_list)
+            
+        
 
 async def process_issue(
     issue: GithubIssue,
@@ -252,6 +319,7 @@ async def process_issue(
     output_dir: str,
     runtime_container_image: str,
     prompt_template: str,
+    issue_type: str,
     repo_instruction: str | None = None,
     reset_logger: bool = True,
 ) -> ResolverOutput:
@@ -263,7 +331,8 @@ async def process_issue(
     else:
         logger.info(f'Starting fixing issue {issue.number}.')
 
-    workspace_base = os.path.join(output_dir, "workspace", f"issue_{issue.number}")
+    workspace_base = os.path.join(output_dir, "workspace", f"{issue_type}_{issue.number}")
+
     # Get the absolute path of the workspace base
     workspace_base = os.path.abspath(workspace_base)
     # write the repo to the workspace
@@ -292,7 +361,7 @@ async def process_issue(
     runtime = create_runtime(config, sid=f"{issue.number}")
     initialize_runtime(runtime)
 
-    instruction = get_instruction(issue, prompt_template, repo_instruction)
+    instruction = get_instruction(issue, prompt_template, issue_type, repo_instruction)
 
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     state: State | None = await run_controller(
@@ -316,25 +385,129 @@ async def process_issue(
     metrics = state.metrics.get() if state.metrics else None
 
     # determine success based on the history and the issue description
-    success, success_explanation = guess_success(issue, state.history, llm_config)
+    success, comment_success, success_explanation = guess_success(issue, issue_type, state.history, llm_config)
+
+    if issue_type == "pr" and comment_success:
+        success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
+        for success_indicator, explanation in zip(comment_success, json.loads(success_explanation)):
+                status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
+                bullet_point = colored("-", "yellow")
+                success_log += f"\n{bullet_point} {status}: {explanation}"
+        logger.info(success_log)
+
+
 
     # Save the output
     output = ResolverOutput(
         issue=issue,
+        issue_type=issue_type,
         instruction=instruction,
         base_commit=base_commit,
         git_patch=git_patch,
         history=histories,
         metrics=metrics,
         success=success,
+        comment_success=comment_success,
         success_explanation=success_explanation,
         error=state.last_error if state and state.last_error else None,
     )
     return output
 
+def download_pr_metadata(owner: str, repo: str, token: str, pull_number: int):
+    
+    """
+        Run a GraphQL query against the GitHub API for information on 
+            1. unresolved review comments
+            2. referenced issues the pull request would close
+
+        Args:
+            query: The GraphQL query as a string.
+            variables: A dictionary of variables for the query.
+            token: Your GitHub personal access token.
+
+        Returns:
+            The JSON response from the GitHub API.
+    """
+    # Using graphql as REST API doesn't indicate resolved status for review comments
+    # TODO: grabbing the first 10 issues, 100 review threads, and 100 coments; add pagination to retrieve all
+    query = """
+            query($owner: String!, $repo: String!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pr) {
+                        closingIssuesReferences(first: 10) {
+                            edges {
+                                node {
+                                    body
+                                }
+                            }
+                        }
+                        url
+                        reviewThreads(first: 100) {
+                            edges{
+                                node{
+                                    isResolved
+                                    comments(first: 100) {
+                                        totalCount
+                                        nodes {
+                                            body
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+
+
+
+    variables = {
+        "owner": owner,
+        "repo": repo,
+        "pr": pull_number
+    }
+
+    url = "https://api.github.com/graphql"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+    response.raise_for_status()
+    response_json = response.json()
+
+    # Parse the response to get closing issue references and unresolved review comments
+    pr_data = response_json.get("data", {}).get("repository", {}).get("pullRequest", {})
+
+    # Get closing issues
+    closing_issues = pr_data.get("closingIssuesReferences", {}).get("edges", [])
+    closing_issues_bodies = [issue["node"]["body"] for issue in closing_issues]
+
+    # Get unresolved review comments
+    unresolved_comments = []
+    review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
+    for thread in review_threads:
+        node = thread.get("node", {})
+        if not node.get("isResolved", True):  # Check if the review thread is unresolved
+            comments = node.get("comments", {}).get("nodes", [])
+            message = ""
+            for i, comment in enumerate(comments):
+                if i == len(comments) - 1:  # Check if it's the last comment in the thread
+                    if len(comments) > 1:
+                        message += "---\n"  # Add "---" before the last message if there's more than one comment
+                    message += "latest feedback:\n" + comment["body"] + "\n"
+                else:
+                    message += comment["body"] + "\n"  # Add each comment in a new line
+            unresolved_comments.append(message)
+
+    return closing_issues_bodies, unresolved_comments
+
+
 
 def download_issues_from_github(
-    owner: str, repo: str, token: str
+    owner: str, repo: str, token: str, issue_type: str
 ) -> list[GithubIssue]:
     """Download issues from Github.
 
@@ -346,7 +519,13 @@ def download_issues_from_github(
     Returns:
         List of Github issues.
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+
+    if issue_type == "issue":
+        url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+    else:
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+
+    
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
@@ -377,18 +556,38 @@ def download_issues_from_github(
                 f"Skipping issue {issue} as it is missing number, title, or body."
             )
             continue
-        # Skip pull requests
-        if "pull_request" in issue:
+
+        # Skip pull requests only for regular issues
+        if issue_type == "issue" and "pull_request" in issue:
             continue
-        converted_issues.append(
-            GithubIssue(
-                owner=owner,
-                repo=repo,
-                number=issue["number"],
-                title=issue["title"],
-                body=issue["body"],
-            )
-        )
+        
+        
+        
+        if issue_type == "pr":
+            closing_issues, unresolved_comments = download_pr_metadata(owner, repo, token, issue["number"])
+            head_branch = issue["head"]["ref"]
+            issue_details = GithubIssue(
+                                owner=owner,
+                                repo=repo,
+                                number=issue["number"],
+                                title=issue["title"],
+                                body=issue["body"],
+                                closing_issues=closing_issues,
+                                review_comments=unresolved_comments,
+                                head_branch=head_branch
+                            )
+            
+            print(closing_issues, unresolved_comments, issue["number"])
+        else:
+            issue_details = GithubIssue(
+                                owner=owner,
+                                repo=repo,
+                                number=issue["number"],
+                                title=issue["title"],
+                                body=issue["body"],
+                            )
+            
+        converted_issues.append(issue_details)
     return converted_issues
 
 
@@ -419,6 +618,7 @@ async def resolve_issues(
     llm_config: LLMConfig,
     runtime_container_image: str,
     prompt_template: str,  # Add this parameter
+    issue_type: str,
     repo_instruction: str | None,
     issue_numbers: list[int] | None,
 ) -> None:
@@ -440,8 +640,9 @@ async def resolve_issues(
 
     # Load dataset
     issues: list[GithubIssue] = download_issues_from_github(
-        owner, repo, token
+        owner, repo, token, issue_type
     )
+    
     if issue_numbers is not None:
         issues = [issue for issue in issues if issue.number in issue_numbers]
         logger.info(f"Limiting resolving to issues {issue_numbers}.")
@@ -529,6 +730,17 @@ async def resolve_issues(
         # Replace the ProcessPoolExecutor with asyncio.gather
         tasks = []
         for issue in issues:
+            
+            # checkout to pr branch
+            if issue_type == "pr":
+                logger.info(f"Checking out to PR branch {issue.head_branch} for issue {issue.number}")
+                subprocess.check_call(
+                    ["git", "fetch", "origin", f"pull/{issue.number}/head"],
+                    cwd=repo_dir,
+                )
+
+
+
             task = update_progress(
                 process_issue(
                     issue,
@@ -538,6 +750,7 @@ async def resolve_issues(
                     output_dir,
                     runtime_container_image,
                     prompt_template,
+                    issue_type,
                     repo_instruction,
                     bool(num_workers > 1),
                 ),
@@ -656,6 +869,15 @@ def main():
         default=None,
         help="Path to the repository instruction file in text format.",
     )
+
+    parser.add_argument(
+        "--issue-type",
+        type=str,
+        default="issue",
+        choices=["issue", "pr"],
+        help="Type of issue to resolve, either open issue or pr comments.",
+    )
+
     my_args = parser.parse_args()
 
     runtime_container_image = my_args.runtime_container_image
@@ -681,13 +903,6 @@ def main():
         base_url=my_args.llm_base_url or os.environ.get("LLM_BASE_URL", None),
     )
 
-    # Read the prompt template
-    prompt_file = my_args.prompt_file
-    if prompt_file is None:
-        prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-with-tests.jinja")
-    with open(prompt_file, 'r') as f:
-        prompt_template = f.read()
-
     repo_instruction = None
     if my_args.repo_instruction_file:
         with open(my_args.repo_instruction_file, 'r') as f:
@@ -696,6 +911,18 @@ def main():
     issue_numbers = None
     if my_args.issue_numbers:
         issue_numbers = [int(number) for number in my_args.issue_numbers.split(",")]
+
+    issue_type = my_args.issue_type
+
+    # Read the prompt template
+    prompt_file = my_args.prompt_file
+    if prompt_file is None:
+        if issue_type == "issue":
+            prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-with-tests.jinja")
+        else:
+            prompt_file = os.path.join(os.path.dirname(__file__), "prompts/resolve/basic-followup.jinja") 
+    with open(prompt_file, 'r') as f:
+        prompt_template = f.read()
 
     asyncio.run(
         resolve_issues(
@@ -710,6 +937,7 @@ def main():
             output_dir=my_args.output_dir,
             llm_config=llm_config,
             prompt_template=prompt_template,  # Pass the prompt template
+            issue_type=issue_type,
             repo_instruction=repo_instruction,
             issue_numbers=issue_numbers,
         )
