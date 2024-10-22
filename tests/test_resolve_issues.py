@@ -4,14 +4,12 @@ import pytest
 
 
 from unittest.mock import AsyncMock, patch, MagicMock
+from openhands_resolver.issue_definitions import IssueHandler, PRHandler
 from openhands_resolver.resolve_issues import (
     create_git_patch,
-    guess_success,
     initialize_runtime,
     complete_runtime,
-    get_instruction,
     process_issue,
-    download_issues_from_github,
 )
 from openhands_resolver.github_issue import GithubIssue
 from openhands.events.action import CmdRunAction
@@ -112,7 +110,8 @@ def test_initialize_runtime():
 
 
 def test_download_issues_from_github():
-    issue_type = "issue"
+    handler = IssueHandler("owner", "repo", "token")
+
 
     mock_response = MagicMock()
     mock_response.json.side_effect = [
@@ -126,10 +125,10 @@ def test_download_issues_from_github():
     mock_response.raise_for_status = MagicMock()
 
     with patch('requests.get', return_value=mock_response):
-        issues = download_issues_from_github("owner", "repo", "token", issue_type)
+        issues = handler.get_converted_issues()
 
     assert len(issues) == 2
-    assert issue_type == "issue"
+    assert handler.issue_type == "issue"
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 3]
     assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
@@ -138,7 +137,7 @@ def test_download_issues_from_github():
 
 
 def test_download_pr_from_github():
-    issue_type = "pr"
+    handler = PRHandler("owner", "repo", "token")
     mock_response = MagicMock()
     mock_response.json.side_effect = [
         [
@@ -207,10 +206,10 @@ def test_download_pr_from_github():
 
     with patch('requests.get', return_value=mock_response):
         with patch('requests.post', return_value=mock_graphql_response):  
-            issues = download_issues_from_github("owner", "repo", "token", issue_type)
+            issues = handler.get_converted_issues()
 
     assert len(issues) == 3
-    assert issue_type == "pr"
+    assert handler.issue_type == "pr"
     assert all(isinstance(issue, GithubIssue) for issue in issues)
     assert [issue.number for issue in issues] == [1, 2, 3]
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
@@ -262,7 +261,8 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
     mock_initialize_runtime = AsyncMock()
     mock_run_controller = AsyncMock()
     mock_complete_runtime = AsyncMock()
-    mock_guess_success = MagicMock()
+    handler_instance = MagicMock()
+
 
     # Set up test data
     issue = GithubIssue(
@@ -288,9 +288,10 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
         last_error=None,
     )
     mock_complete_runtime.return_value = {"git_patch": "test patch"}
-    mock_guess_success.return_value = (True, None, "Issue resolved successfully")
+    handler_instance.guess_success.return_value = (True, None, "Issue resolved successfully")
+    handler_instance.get_instruction.return_value = "Test instruction"  
+    handler_instance.issue_type = "issue"  
 
-    # Patch the necessary functions
     with patch(
         "openhands_resolver.resolve_issues.create_runtime", mock_create_runtime
     ), patch(
@@ -300,47 +301,46 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
     ), patch(
         "openhands_resolver.resolve_issues.complete_runtime", mock_complete_runtime
     ), patch(
-        "openhands_resolver.resolve_issues.guess_success", mock_guess_success
-    ), patch(
         "openhands_resolver.resolve_issues.logger"
     ):
 
-        issue_type = "issue"
-    
-        # Call the function
-        result = await process_issue(
-            issue,
-            base_commit,
-            max_iterations,
-            llm_config,
-            mock_output_dir,
-            runtime_container_image,
-            mock_prompt_template,  # Add this argument
-            issue_type,
-            repo_instruction,
-            reset_logger=False
-        )
+            # Call the function
+            result = await process_issue(
+                issue,
+                base_commit,
+                max_iterations,
+                llm_config,
+                mock_output_dir,
+                runtime_container_image,
+                mock_prompt_template,
+                handler_instance,
+                repo_instruction,
+                reset_logger=False
+            )
 
-        # Assert the result
-        assert issue_type == "issue"
-        assert isinstance(result, ResolverOutput)
-        assert result.issue == issue
-        assert result.base_commit == base_commit
-        assert result.git_patch == "test patch"
-        assert result.success
-        assert result.success_explanation == "Issue resolved successfully"
-        assert result.error is None
+            # Assert the result
+            assert handler_instance.issue_type == "issue"
+            assert isinstance(result, ResolverOutput)
+            assert result.issue == issue
+            assert result.base_commit == base_commit
+            assert result.git_patch == "test patch"
+            assert result.success
+            assert result.success_explanation == "Issue resolved successfully"
+            assert result.error is None
 
-        # Assert that the mocked functions were called
-        mock_create_runtime.assert_called_once()
-        mock_initialize_runtime.assert_called_once()
-        mock_run_controller.assert_called_once()
-        mock_complete_runtime.assert_called_once()
-        mock_guess_success.assert_called_once()
+            # Assert that the mocked functions were called
+            mock_create_runtime.assert_called_once()
+            mock_initialize_runtime.assert_called_once()
+            mock_run_controller.assert_called_once()
+            mock_complete_runtime.assert_called_once()
+
+            # Assert that the guess_success was called correctly
+            handler_instance.guess_success.assert_called_once()
+
+
 
 
 def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
-    issue_type = "issue"
     issue = GithubIssue(
         owner="test_owner",
         repo="test_repo",
@@ -348,13 +348,13 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         title="Test Issue",
         body="This is a test issue",
     )
-    instruction = get_instruction(issue, mock_prompt_template, issue_type, None)
+    issue_handler = IssueHandler("owner", "repo", "token")
+    instruction = issue_handler.get_instruction(issue, mock_prompt_template, None)
     expected_instruction = "Issue: This is a test issue\n\nPlease fix this issue."
     
-    assert issue_type == "issue"
+    assert issue_handler.issue_type == "issue"
     assert instruction == expected_instruction
 
-    issue_type = "pr"
     issue = GithubIssue(
         owner="test_owner",
         repo="test_repo",
@@ -365,10 +365,11 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         review_comments=["There is still a typo 'pthon' instead of 'python'"],
     )
 
-    instruction = get_instruction(issue, mock_followup_prompt_template, issue_type, None)
+    pr_handler = PRHandler("owner", "repo", "token")
+    instruction = pr_handler.get_instruction(issue, mock_followup_prompt_template, None)
     expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
 
-    assert issue_type == "pr"
+    assert pr_handler.issue_type == "pr"
     assert instruction == expected_instruction
 
 def test_file_instruction():
@@ -383,8 +384,8 @@ def test_file_instruction():
     with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
         prompt = f.read()
     
-    issue_type = "issue"
-    instruction = get_instruction(issue, prompt, issue_type, None)
+    issue_handler = IssueHandler("owner", "repo", "token")
+    instruction = issue_handler.get_instruction(issue, prompt, None)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
@@ -396,7 +397,6 @@ You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
 
-    assert issue_type == "issue"
     assert instruction == expected_instruction
 
 
@@ -415,8 +415,8 @@ def test_file_instruction_with_repo_instruction():
     with open("openhands_resolver/prompts/repo_instructions/all-hands-ai___openhands-resolver.txt", "r") as f:
         repo_instruction = f.read()
     
-    issue_type = "issue"
-    instruction = get_instruction(issue, prompt, issue_type, repo_instruction)
+    issue_handler = IssueHandler("owner", "repo", "token")
+    instruction = issue_handler.get_instruction(issue, prompt, repo_instruction)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
@@ -434,7 +434,7 @@ This is a Python repo for openhands-resolver, a library that attempts to resolve
 
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
     assert instruction == expected_instruction
-
+    assert issue_handler.issue_type == "issue"
 
 def test_guess_success():
     mock_issue = GithubIssue(
@@ -457,12 +457,12 @@ def test_guess_success():
 
     mock_completion_response = MagicMock()
     mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\ntrue\n--- explanation\nIssue resolved successfully"))]
-    issue_type = "issue"
+    issue_handler = IssueHandler("owner", "repo", "token")
 
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
-        success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
+        success, comment_success, explanation = issue_handler.guess_success(mock_issue, mock_history, mock_llm_config)
+        assert issue_handler.issue_type == "issue"
         assert comment_success is None
-        assert issue_type == "issue"
         assert success
         assert explanation == "Issue resolved successfully"
 
@@ -487,14 +487,14 @@ def test_guess_success_failure():
     mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
 
     mock_completion_response = MagicMock()
-    mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\nfalse\n--- explanation\nIssue not resolved"))]
-    issue_type = "issue"
-    
+    mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\nfalse\n--- explanation\nIssue not resolved"))]    
+    issue_handler = IssueHandler("owner", "repo", "token")
+
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
-        success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
+        success, comment_success, explanation = issue_handler.guess_success(mock_issue, mock_history, mock_llm_config)
         print(f"success: {success}, explanation: {explanation}")
+        assert issue_handler.issue_type == "issue"
         assert comment_success is None
-        assert issue_type == "issue"
         assert not success
         assert explanation == "Issue not resolved"
 
@@ -520,11 +520,11 @@ def test_guess_success_invalid_output():
 
     mock_completion_response = MagicMock()
     mock_completion_response.choices = [MagicMock(message=MagicMock(content="This is not a valid output"))]
-    issue_type = "issue"
+    issue_handler = IssueHandler("owner", "repo", "token")
 
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
-        success, comment_success, explanation = guess_success(mock_issue, issue_type, mock_history, mock_llm_config)
-        assert issue_type == "issue"
+        success, comment_success, explanation = issue_handler.guess_success(mock_issue, mock_history, mock_llm_config)
+        assert issue_handler.issue_type == "issue"
         assert comment_success is None
         assert not success
         assert explanation == "Failed to decode answer from LLM response: This is not a valid output"
