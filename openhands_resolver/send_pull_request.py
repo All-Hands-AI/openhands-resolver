@@ -242,7 +242,7 @@ def send_pull_request(
 
     return url
 
-def reply_to_comment(github_token: str, comment_id: int, reply: str):
+def reply_to_comment(github_token: str, comment_id: str, reply: str):
     # Opting for graphql as REST API doesn't allow reply to replies in comment threads
     query = """
             mutation($body: String!, $pullRequestReviewThreadId: ID!) {
@@ -315,12 +315,13 @@ def update_existing_pull_request(
             print(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
         else:
             print(f"Comment added to the PR: {comment_message}")
-
-    explanations = json.loads(additional_message)
-    for count in range(len(github_issue.thread_ids)):
-        reply_comment = explanations[count]
-        comment_id = github_issue.thread_ids[count]
-        reply_to_comment(github_token, comment_id, reply_comment)
+    
+    if additional_message and github_issue.thread_ids:
+        explanations = json.loads(additional_message)
+        for count in range(len(github_issue.thread_ids)):
+            reply_comment = explanations[count]
+            comment_id = github_issue.thread_ids[count]
+            reply_to_comment(github_token, comment_id, reply_comment)
     
     return pr_url
 
@@ -343,19 +344,24 @@ def process_single_issue(
     issue_type = resolver_output.issue_type
 
     if issue_type == "issue":
-        base_commit = resolver_output.base_commit
+        patched_repo_dir = initialize_repo(
+            output_dir, 
+            resolver_output.issue.number, 
+            issue_type, 
+            resolver_output.base_commit
+        )
     elif issue_type == "pr":
-        base_commit = resolver_output.issue.head_branch
+        patched_repo_dir = initialize_repo(
+            output_dir, 
+            resolver_output.issue.number, 
+            issue_type, 
+            resolver_output.issue.head_branch
+        )
     else:
         raise ValueError(f"Invalid issue type: {issue_type}")
 
 
-    patched_repo_dir = initialize_repo(
-        output_dir, 
-        resolver_output.issue.number, 
-        issue_type, 
-        base_commit
-    )
+    
 
     apply_patch(patched_repo_dir, resolver_output.git_patch)
 

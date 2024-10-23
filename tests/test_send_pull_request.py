@@ -10,6 +10,8 @@ from openhands_resolver.send_pull_request import (
     initialize_repo,
     process_single_issue,
     send_pull_request,
+    update_existing_pull_request,
+    reply_to_comment,
     process_all_successful_issues,
     make_commit,
 )
@@ -40,7 +42,6 @@ def mock_github_issue():
         repo="test-repo",
         body="Test body",
     )
-
 
 def test_load_single_resolver_output():
     mock_output_jsonl = "tests/mock_output/output.jsonl"
@@ -205,6 +206,73 @@ def test_initialize_repo(mock_output_dir):
     with open(os.path.join(patches_dir, "README.md"), "r") as f:
         assert f.read() == "hello world"
 
+@patch("openhands_resolver.send_pull_request.reply_to_comment")
+@patch("requests.post")
+@patch("subprocess.run")
+def test_update_existing_pull_request(
+    mock_subprocess_run, mock_requests_post, mock_reply_to_comment
+):
+    # Arrange: Set up test data
+    github_issue = GithubIssue(
+        owner="test-owner",
+        repo="test-repo",
+        number=1,
+        title="Test PR",
+        body="This is a test PR",
+        thread_ids=["comment1", "comment2"],
+        head_branch="test-branch"
+    )
+    github_token = "test-token"
+    github_username = "test-user"
+    patch_dir = "/path/to/patch"
+    comment_message = "New openhands update"
+    additional_message = '["Reply to comment 1", "Reply to comment 2"]'
+
+    # Mock the subprocess.run call for git push
+    mock_subprocess_run.return_value = MagicMock(returncode=0)
+
+    # Mock the requests.post call for adding a PR comment
+    mock_requests_post.return_value.status_code = 201
+
+    # Act: Call the function
+    result = update_existing_pull_request(
+        github_issue,
+        github_token,
+        github_username,
+        patch_dir,
+        comment_message,
+        additional_message,
+    )
+
+    # Assert: Check if the git push command was executed
+    push_command = (
+        f"git -C {patch_dir} push "
+        f"https://{github_username}:{github_token}@github.com/"
+        f"{github_issue.owner}/{github_issue.repo}.git {github_issue.head_branch}"
+    )
+    mock_subprocess_run.assert_called_once_with(push_command, shell=True, capture_output=True, text=True)
+
+    # Assert: Check if the comment was posted to the PR
+    comment_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}/issues/{github_issue.number}/comments"
+    mock_requests_post.assert_called_once_with(
+        comment_url,
+        headers={
+            "Authorization": f"token {github_token}",
+            "Accept": "application/vnd.github.v3+json",
+        },
+        json={"body": comment_message},
+    )
+
+    # Assert: Check if the reply_to_comment function was called for each thread ID
+    mock_reply_to_comment.assert_has_calls([
+        call(github_token, "comment1", "Reply to comment 1"),
+        call(github_token, "comment2", "Reply to comment 2"),
+    ])
+
+    # Assert: Check the returned PR URL
+    assert result == f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
+
+
 
 @pytest.mark.parametrize("pr_type", ["branch", "draft", "ready"])
 @patch("subprocess.run")
@@ -358,6 +426,136 @@ def test_send_pull_request_permission_error(
     # Assert that the branch was created and pushed
     assert mock_run.call_count == 2
     mock_post.assert_called_once()
+
+@patch("requests.post")
+def test_reply_to_comment(mock_post):
+    # Arrange: set up the test data
+    github_token = "test_token"
+    comment_id = "test_comment_id"
+    reply = "This is a test reply."
+
+    # Mock the response from the GraphQL API
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "data": {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "test_reply_id",
+                    "body": "Openhands fix success summary\n\n\nThis is a test reply.",
+                    "createdAt": "2024-10-01T12:34:56Z"
+                }
+            }
+        }
+    }
+    
+    mock_post.return_value = mock_response
+
+    # Act: call the function
+    reply_to_comment(github_token, comment_id, reply)
+
+    # Assert: check that the POST request was made with the correct parameters
+    query = """
+            mutation($body: String!, $pullRequestReviewThreadId: ID!) {
+                addPullRequestReviewThreadReply(input: { body: $body, pullRequestReviewThreadId: $pullRequestReviewThreadId }) {
+                    comment {
+                        id
+                        body
+                        createdAt
+                    }
+                }
+            }
+            """
+    
+    expected_variables = {
+        "body": "Openhands fix success summary\n\n\nThis is a test reply.",
+        "pullRequestReviewThreadId": comment_id
+    }
+
+    # Check that the correct request was made to the API
+    mock_post.assert_called_once_with(
+        "https://api.github.com/graphql",
+        json={"query": query, "variables": expected_variables},
+        headers={
+            "Authorization": f"Bearer {github_token}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    # Check that the response status was checked (via response.raise_for_status)
+    mock_response.raise_for_status.assert_called_once()
+
+
+
+
+@patch("openhands_resolver.send_pull_request.initialize_repo")
+@patch("openhands_resolver.send_pull_request.apply_patch")
+@patch("openhands_resolver.send_pull_request.update_existing_pull_request")
+@patch("openhands_resolver.send_pull_request.make_commit")
+def test_process_single_pr_update(
+    mock_make_commit,
+    mock_update_existing_pull_request,
+    mock_apply_patch,
+    mock_initialize_repo,
+    mock_output_dir,
+):
+    # Initialize test data
+    github_token = "test_token"
+    github_username = "test_user"
+    pr_type = "draft"
+
+    resolver_output = ResolverOutput(
+        issue=GithubIssue(
+            owner="test-owner",
+            repo="test-repo",
+            number=1,
+            title="Issue 1",
+            body="Body 1",
+            closing_issues=[],
+            review_comments=["review comment for feedback"],
+            thread_ids= ["1"],
+            head_branch="branch 1"
+
+        ),
+        issue_type="pr",
+        instruction="Test instruction 1",
+        base_commit="def456",
+        git_patch="Test patch 1",
+        history=[],
+        metrics={},
+        success=True,
+        comment_success=None,
+        success_explanation="[Test success 1]",
+        error=None,
+    )
+    
+    mock_update_existing_pull_request.return_value = (
+        "https://github.com/test-owner/test-repo/pull/1"
+    )
+    mock_initialize_repo.return_value = (
+        f"{mock_output_dir}/patches/pr_1"
+    )
+
+    process_single_issue(
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, None, False
+    )
+
+    mock_initialize_repo.assert_called_once_with(mock_output_dir, 1, "pr", "branch 1")
+    mock_apply_patch.assert_called_once_with(
+        f"{mock_output_dir}/patches/pr_1", resolver_output.git_patch
+    )
+    mock_make_commit.assert_called_once_with(
+        f"{mock_output_dir}/patches/pr_1", resolver_output.issue, "pr"
+    )
+    mock_update_existing_pull_request.assert_called_once_with(
+        github_issue=resolver_output.issue,
+        github_token=github_token,
+        github_username=github_username,
+        patch_dir=f"{mock_output_dir}/patches/pr_1",
+        additional_message="[Test success 1]",
+    )
+
+
 
 
 @patch("openhands_resolver.send_pull_request.initialize_repo")
