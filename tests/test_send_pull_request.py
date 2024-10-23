@@ -192,9 +192,10 @@ index 9daeafb..0000000
 
 
 def test_initialize_repo(mock_output_dir):
+    issue_type = "issue"
     # Copy the repo to patches
     ISSUE_NUMBER = 3
-    initialize_repo(mock_output_dir, ISSUE_NUMBER)
+    initialize_repo(mock_output_dir, ISSUE_NUMBER, issue_type)
     patches_dir = os.path.join(mock_output_dir, "patches", f"issue_{ISSUE_NUMBER}")
 
     # Check if files were copied correctly
@@ -409,12 +410,12 @@ def test_process_single_issue(
     )
 
     # Assert that the mocked functions were called with correct arguments
-    mock_initialize_repo.assert_called_once_with(mock_output_dir, 1, "def456")
+    mock_initialize_repo.assert_called_once_with(mock_output_dir, 1, "issue", "def456")
     mock_apply_patch.assert_called_once_with(
         f"{mock_output_dir}/patches/issue_1", resolver_output.git_patch
     )
     mock_make_commit.assert_called_once_with(
-        f"{mock_output_dir}/patches/issue_1", resolver_output.issue
+        f"{mock_output_dir}/patches/issue_1", resolver_output.issue, "issue"
     )
     mock_send_pull_request.assert_called_once_with(
         github_issue=resolver_output.issue,
@@ -705,7 +706,8 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     mock_subprocess_run.return_value = MagicMock(returncode=0, stdout='', stderr='')
 
     # Call the function
-    make_commit(repo_dir, issue)
+    issue_type = "issue"
+    make_commit(repo_dir, issue, issue_type)
 
     # Assert that subprocess.run was called with the correct arguments
     calls = mock_subprocess_run.call_args_list
