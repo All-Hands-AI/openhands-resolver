@@ -189,6 +189,7 @@ class PRHandler(IssueHandler):
                             reviewThreads(first: 100) {
                                 edges{
                                     node{
+                                        id
                                         isResolved
                                         comments(first: 100) {
                                             totalCount
@@ -231,10 +232,13 @@ class PRHandler(IssueHandler):
 
         # Get unresolved review comments
         unresolved_comments = []
+        thread_ids = []  # Store comment thread IDs; agent replies to the thread
         review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
         for thread in review_threads:
             node = thread.get("node", {})
             if not node.get("isResolved", True):  # Check if the review thread is unresolved
+                id = node.get("id")
+                thread_ids.append(id)
                 comments = node.get("comments", {}).get("nodes", [])
                 message = ""
                 for i, comment in enumerate(comments):
@@ -246,7 +250,7 @@ class PRHandler(IssueHandler):
                         message += comment["body"] + "\n"  # Add each comment in a new line
                 unresolved_comments.append(message)
 
-        return closing_issues_bodies, unresolved_comments
+        return closing_issues_bodies, unresolved_comments, thread_ids
 
 
     # Override processing of downloaded issues
@@ -260,7 +264,7 @@ class PRHandler(IssueHandler):
                 )
                 continue            
 
-            closing_issues, unresolved_comments = self.__download_pr_metadata(issue["number"])
+            closing_issues, unresolved_comments, thread_ids = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
                                 owner=self.owner,
@@ -270,6 +274,7 @@ class PRHandler(IssueHandler):
                                 body=issue["body"],
                                 closing_issues=closing_issues,
                                 review_comments=unresolved_comments,
+                                thread_ids=thread_ids,
                                 head_branch=head_branch
                             )
             

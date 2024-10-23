@@ -9,4 +9,5 @@ class GithubIssue(BaseModel):
     body: str
     closing_issues: list[str] | None = None
     review_comments: list[str] | None = None
+    thread_ids: list[str] | None = None
     head_branch: str | None = None
