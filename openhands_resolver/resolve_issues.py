@@ -603,7 +603,7 @@ def main():
 
     runtime_container_image = my_args.runtime_container_image
     if runtime_container_image is None:
-        runtime_container_image = f"ghcr.io/all-hands-ai/runtime:oh_v{openhands.__version__}_image_nikolaik_s_python-nodejs_tag_python3.11-nodejs22"
+        runtime_container_image = f"ghcr.io/all-hands-ai/runtime:oh_v{openhands.__version__}_image_nikolaik_s_python-nodejs_tag_python3.12-nodejs22"
 
     owner, repo = my_args.repo.split("/")
     token = (
