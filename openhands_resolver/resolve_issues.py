@@ -243,7 +243,6 @@ async def process_issue(
     config.set_llm_config(llm_config)
 
     runtime = create_runtime(config, sid=f"{issue.number}")
-    await runtime.connect()
     initialize_runtime(runtime)
 
     instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
@@ -606,7 +605,7 @@ def main():
 
     runtime_container_image = my_args.runtime_container_image
     if runtime_container_image is None:
-        runtime_container_image = f"ghcr.io/all-hands-ai/runtime:oh_v{openhands.__version__}_image_nikolaik_s_python-nodejs_tag_python3.12-nodejs22"
+        runtime_container_image = f"ghcr.io/all-hands-ai/runtime:{openhands.__version__}-nikolaik"
 
     owner, repo = my_args.repo.split("/")
     token = (
