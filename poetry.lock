@@ -3072,12 +3072,12 @@ urllib3 = "*"
 
 [[package]]
 name = "modal"
-version = "0.64.228"
+version = "0.64.229"
 description = "Python client library for Modal"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "modal-0.64.228-py3-none-any.whl", hash = "sha256:b0fd822869bd405980a81bda1b718acdf2acfb6fa21f9d001209157bb506bd5d"},
+    {file = "modal-0.64.229-py3-none-any.whl", hash = "sha256:71f37e6b31b7a2908a6bc4107492d9a9f9d540a52f3eb26b9748ea7c80ebefe4"},
 ]
 
 [package.dependencies]
