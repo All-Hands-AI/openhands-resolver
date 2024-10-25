@@ -137,8 +137,7 @@ def make_commit(repo_dir: str, issue: GithubIssue, issue_type: str) -> None:
         text=True,
     )
     if result.returncode != 0:
-        print(f"Error committing changes: {result.stderr}")
-        raise RuntimeError("Failed to commit changes")
+        raise RuntimeError(f"Failed to commit changes: {result}")
 
 
 
