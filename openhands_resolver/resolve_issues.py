@@ -26,7 +26,7 @@ import openhands
 from openhands.core.main import create_runtime, run_controller
 from openhands.controller.state.state import State
 from openhands.core.logger import openhands_logger as logger
-from openhands.events.action import CmdRunAction
+from openhands.events.action import CmdRunAction, MessageAction
 from openhands.events.observation import (
     CmdOutputObservation,
     ErrorObservation,
@@ -246,11 +246,13 @@ async def process_issue(
     initialize_runtime(runtime)
 
     instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
-
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
+    action = MessageAction(
+        content=instruction,
+    )
     state: State | None = await run_controller(
         config=config,
-        task_str=instruction,
+        initial_user_action=action,
         runtime=runtime,
         fake_user_response_fn=codeact_user_response,
     )
@@ -603,7 +605,7 @@ def main():
 
     runtime_container_image = my_args.runtime_container_image
     if runtime_container_image is None:
-        runtime_container_image = f"ghcr.io/all-hands-ai/runtime:oh_v{openhands.__version__}_image_nikolaik_s_python-nodejs_tag_python3.12-nodejs22"
+        runtime_container_image = f"ghcr.io/all-hands-ai/runtime:{openhands.__version__}-nikolaik"
 
     owner, repo = my_args.repo.split("/")
     token = (
