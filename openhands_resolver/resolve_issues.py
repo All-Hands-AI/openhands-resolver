@@ -26,7 +26,7 @@ import openhands
 from openhands.core.main import create_runtime, run_controller
 from openhands.controller.state.state import State
 from openhands.core.logger import openhands_logger as logger
-from openhands.events.action import CmdRunAction
+from openhands.events.action import CmdRunAction, MessageAction
 from openhands.events.observation import (
     CmdOutputObservation,
     ErrorObservation,
@@ -243,14 +243,17 @@ async def process_issue(
     config.set_llm_config(llm_config)
 
     runtime = create_runtime(config, sid=f"{issue.number}")
+    await runtime.connect()
     initialize_runtime(runtime)
 
     instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
-
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
+    action = MessageAction(
+        content=instruction,
+    )
     state: State | None = await run_controller(
         config=config,
-        task_str=instruction,
+        initial_user_action=action,
         runtime=runtime,
         fake_user_response_fn=codeact_user_response,
     )
