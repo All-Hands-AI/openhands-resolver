@@ -448,12 +448,19 @@ async def resolve_issues(
             # checkout to pr branch
             if issue_type == "pr":
                 logger.info(f"Checking out to PR branch {issue.head_branch} for issue {issue.number}")
-                subprocess.check_call(
-                    ["git", "fetch", "origin", f"pull/{issue.number}/head"],
+                
+                subprocess.check_output(
+                    ["git", "checkout", f"{issue.head_branch}"],
                     cwd=repo_dir,
                 )
 
-
+                base_commit = (
+                    subprocess.check_output(
+                        ["git", "rev-parse", "HEAD"], cwd=repo_dir
+                    )
+                    .decode("utf-8")
+                    .strip()
+                )
 
             task = update_progress(
                 process_issue(

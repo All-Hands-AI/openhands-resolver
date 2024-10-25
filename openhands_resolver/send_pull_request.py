@@ -10,24 +10,24 @@ from openhands_resolver.patching import parse_patch, apply_diff
 import requests
 import subprocess
 import shlex
+import json
 
 from openhands_resolver.resolver_output import ResolverOutput
 
 
 def apply_patch(repo_dir: str, patch: str) -> None:
     diffs = parse_patch(patch)
-
     for diff in diffs:
         if not diff.header.new_path:
             print("Warning: Could not determine file to patch")
             continue
 
         old_path = (
-            os.path.join(repo_dir, diff.header.old_path.lstrip("b/"))
+            os.path.join(repo_dir, diff.header.old_path.removeprefix("b/"))
             if diff.header.old_path and diff.header.old_path != "/dev/null"
             else None
         )
-        new_path = os.path.join(repo_dir, diff.header.new_path.lstrip("b/"))
+        new_path = os.path.join(repo_dir, diff.header.new_path.removeprefix("b/"))
 
         # Check if the file is being deleted
         if diff.header.new_path == "/dev/null":
@@ -74,10 +74,10 @@ def apply_patch(repo_dir: str, patch: str) -> None:
 
 
 def initialize_repo(
-    output_dir: str, issue_number: int, base_commit: str | None = None
+    output_dir: str, issue_number: int, issue_type: str, base_commit: str | None = None
 ) -> str:
     src_dir = os.path.join(output_dir, "repo")
-    dest_dir = os.path.join(output_dir, "patches", f"issue_{issue_number}")
+    dest_dir = os.path.join(output_dir, "patches", f"{issue_type}_{issue_number}")
 
     if not os.path.exists(src_dir):
         raise ValueError(f"Source directory {src_dir} does not exist.")
@@ -102,8 +102,7 @@ def initialize_repo(
     return dest_dir
 
 
-def make_commit(repo_dir: str, issue: GithubIssue) -> None:
-
+def make_commit(repo_dir: str, issue: GithubIssue, issue_type: str) -> None:
     # Check if git username is set
     result = subprocess.run(
         f"git -C {repo_dir} config user.name",
@@ -111,6 +110,7 @@ def make_commit(repo_dir: str, issue: GithubIssue) -> None:
         capture_output=True,
         text=True,
     )
+
     if not result.stdout.strip():
         # If username is not set, configure git
         subprocess.run(
@@ -129,7 +129,7 @@ def make_commit(repo_dir: str, issue: GithubIssue) -> None:
         print(f"Error adding files: {result.stderr}")
         raise RuntimeError("Failed to add files to git")
 
-    commit_message = f"Fix issue #{issue.number}: {shlex.quote(issue.title)}"
+    commit_message = f"Fix {issue_type} #{issue.number}: {shlex.quote(issue.title)}"
     result = subprocess.run(
         f"git -C {repo_dir} commit -m {shlex.quote(commit_message)}",
         shell=True,
@@ -139,6 +139,7 @@ def make_commit(repo_dir: str, issue: GithubIssue) -> None:
     if result.returncode != 0:
         print(f"Error committing changes: {result.stderr}")
         raise RuntimeError("Failed to commit changes")
+
 
 
 
@@ -241,6 +242,89 @@ def send_pull_request(
 
     return url
 
+def reply_to_comment(github_token: str, comment_id: str, reply: str):
+    # Opting for graphql as REST API doesn't allow reply to replies in comment threads
+    query = """
+            mutation($body: String!, $pullRequestReviewThreadId: ID!) {
+                addPullRequestReviewThreadReply(input: { body: $body, pullRequestReviewThreadId: $pullRequestReviewThreadId }) {
+                    comment {
+                        id
+                        body
+                        createdAt
+                    }
+                }
+            }
+            """
+    
+    comment_reply = f"Openhands fix success summary\n\n\n{reply}"
+    variables = {
+        "body": comment_reply,
+        "pullRequestReviewThreadId": comment_id  
+    }
+    url = "https://api.github.com/graphql"
+    headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+    response.raise_for_status()
+
+
+def update_existing_pull_request(
+    github_issue: GithubIssue,
+    github_token: str,
+    github_username: str | None,
+    patch_dir: str,
+    comment_message: str = "New openhands update",
+    additional_message: str | None = None,
+) -> str:
+    # Set up headers and base URL for GitHub API
+    headers = {
+        "Authorization": f"token {github_token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    base_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}"   
+    branch_name = github_issue.head_branch
+
+    # Push the changes to the existing branch
+    push_command = (
+        f"git -C {patch_dir} push "
+        f"https://{github_username}:{github_token}@github.com/"
+        f"{github_issue.owner}/{github_issue.repo}.git {branch_name}"
+    )
+
+    result = subprocess.run(push_command, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error pushing changes: {result.stderr}")
+        raise RuntimeError("Failed to push changes to the remote repository")
+
+    pr_url = f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
+    print(f"Updated pull request {pr_url} with new patches.")
+
+
+    # Send PR Comments
+    # TODO: run a summary of all comment success indicators for PR message
+    if comment_message:
+        comment_url = f"{base_url}/issues/{github_issue.number}/comments"
+        comment_data = {
+            "body": comment_message
+        }
+        comment_response = requests.post(comment_url, headers=headers, json=comment_data)
+        if comment_response.status_code != 201:
+            print(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
+        else:
+            print(f"Comment added to the PR: {comment_message}")
+    
+    if additional_message and github_issue.thread_ids:
+        explanations = json.loads(additional_message)
+        for count in range(len(github_issue.thread_ids)):
+            reply_comment = explanations[count]
+            comment_id = github_issue.thread_ids[count]
+            reply_to_comment(github_token, comment_id, reply_comment)
+    
+    return pr_url
+
 
 def process_single_issue(
     output_dir: str,
@@ -257,23 +341,50 @@ def process_single_issue(
         )
         return
 
-    patched_repo_dir = initialize_repo(
-        output_dir, resolver_output.issue.number, resolver_output.base_commit
-    )
+    issue_type = resolver_output.issue_type
+
+    if issue_type == "issue":
+        patched_repo_dir = initialize_repo(
+            output_dir, 
+            resolver_output.issue.number, 
+            issue_type, 
+            resolver_output.base_commit
+        )
+    elif issue_type == "pr":
+        patched_repo_dir = initialize_repo(
+            output_dir, 
+            resolver_output.issue.number, 
+            issue_type, 
+            resolver_output.issue.head_branch
+        )
+    else:
+        raise ValueError(f"Invalid issue type: {issue_type}")
+
+
+    
 
     apply_patch(patched_repo_dir, resolver_output.git_patch)
 
-    make_commit(patched_repo_dir, resolver_output.issue)
+    make_commit(patched_repo_dir, resolver_output.issue, issue_type)
 
-    send_pull_request(
-        github_issue=resolver_output.issue,
-        github_token=github_token,
-        github_username=github_username,
-        patch_dir=patched_repo_dir,
-        pr_type=pr_type,
-        fork_owner=fork_owner,
-        additional_message=resolver_output.success_explanation,
-    )
+    if issue_type == "pr":
+        update_existing_pull_request(
+            github_issue=resolver_output.issue,
+            github_token=github_token,
+            github_username=github_username,
+            patch_dir=patched_repo_dir,
+            additional_message=resolver_output.success_explanation
+        )
+    else:
+        send_pull_request(
+            github_issue=resolver_output.issue,
+            github_token=github_token,
+            github_username=github_username,
+            patch_dir=patched_repo_dir,
+            pr_type=pr_type,
+            fork_owner=fork_owner,
+            additional_message=resolver_output.success_explanation,
+        )
 
 
 def process_all_successful_issues(

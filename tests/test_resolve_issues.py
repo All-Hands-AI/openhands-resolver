@@ -134,6 +134,7 @@ def test_download_issues_from_github():
     assert [issue.title for issue in issues] == ["Issue 1", "Issue 2"]
     assert [issue.review_comments for issue in issues] == [None, None]
     assert [issue.closing_issues for issue in issues] == [None, None]
+    assert [issue.thread_ids for issue in issues] == [None, None]
 
 
 def test_download_pr_from_github():
@@ -166,6 +167,7 @@ def test_download_pr_from_github():
                             {
                                 "node": {
                                     "isResolved": False,
+                                    "id": "1",
                                     "comments": {
                                         "nodes": [
                                             {"body": "Unresolved comment 1"},
@@ -177,6 +179,7 @@ def test_download_pr_from_github():
                             {
                                 "node": {
                                     "isResolved": True,
+                                    "id": "2",
                                     "comments": {
                                         "nodes": [
                                             {"body": "Resolved comment 1"},
@@ -187,6 +190,7 @@ def test_download_pr_from_github():
                             {
                                 "node": {
                                     "isResolved": False,
+                                    "id": "3",
                                     "comments": {
                                         "nodes": [
                                             {"body": "Unresolved comment 3"},
@@ -216,7 +220,7 @@ def test_download_pr_from_github():
     assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
     assert issues[0].review_comments == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
-
+    assert issues[0].thread_ids == ["1", "3"]
 
 @pytest.mark.asyncio
 async def test_complete_runtime():
