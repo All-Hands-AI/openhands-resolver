@@ -536,3 +536,53 @@ def test_guess_success_invalid_output():
 
 if __name__ == "__main__":
     pytest.main()
+
+import os
+import subprocess
+import pytest
+from unittest.mock import patch, MagicMock
+from openhands_resolver.resolve_issues import resolve_issues
+from openhands_resolver.github_issue import GithubIssue
+
+def test_pr_branch_checkout():
+    # Mock the necessary objects and functions
+    mock_issue = MagicMock(spec=GithubIssue)
+    mock_issue.head_branch = "test-branch"
+    mock_issue.number = 123
+
+    # Create a temporary git repo for testing
+    test_dir = "test_repo"
+    os.makedirs(test_dir, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=test_dir)
+    
+    # Create and commit a test file
+    with open(os.path.join(test_dir, "test.txt"), "w") as f:
+        f.write("test content")
+    subprocess.run(["git", "add", "."], cwd=test_dir)
+    subprocess.run(["git", "commit", "-m", "initial commit"], cwd=test_dir)
+    
+    # Mock git commands to simulate remote branch
+    def mock_check_output(cmd, cwd=None):
+        if cmd[0] == "git" and cmd[1] == "fetch":
+            return b""
+        elif cmd[0] == "git" and cmd[1] == "checkout":
+            if "-b" not in cmd or "origin/test-branch" not in cmd:
+                raise subprocess.CalledProcessError(1, cmd, b"error: pathspec did not match")
+            return b""
+        return b""
+
+    with patch("subprocess.check_output", side_effect=mock_check_output):
+        # This should not raise an exception
+        subprocess.check_output(
+            ["git", "fetch", "origin", "test-branch"],
+            cwd=test_dir,
+        )
+        subprocess.check_output(
+            ["git", "checkout", "-b", "test-branch", "origin/test-branch"],
+            cwd=test_dir,
+        )
+
+    # Clean up
+    import shutil
+    shutil.rmtree(test_dir)
+

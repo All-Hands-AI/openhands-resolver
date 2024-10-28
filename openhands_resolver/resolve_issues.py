@@ -451,8 +451,15 @@ async def resolve_issues(
             if issue_type == "pr":
                 logger.info(f"Checking out to PR branch {issue.head_branch} for issue {issue.number}")
                 
+                # First fetch the remote branch
                 subprocess.check_output(
-                    ["git", "checkout", f"{issue.head_branch}"],
+                    ["git", "fetch", "origin", f"{issue.head_branch}"],
+                    cwd=repo_dir,
+                )
+                
+                # Then checkout to the fetched branch
+                subprocess.check_output(
+                    ["git", "checkout", "-b", f"{issue.head_branch}", f"origin/{issue.head_branch}"],
                     cwd=repo_dir,
                 )
 
