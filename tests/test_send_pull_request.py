@@ -225,7 +225,6 @@ def test_update_existing_pull_request(
     github_token = "test-token"
     github_username = "test-user"
     patch_dir = "/path/to/patch"
-    comment_message = "New openhands update"
     additional_message = '["Reply to comment 1", "Reply to comment 2"]'
 
     # Mock the subprocess.run call for git push
@@ -240,8 +239,7 @@ def test_update_existing_pull_request(
         github_token,
         github_username,
         patch_dir,
-        comment_message,
-        additional_message,
+        additional_message=additional_message,
     )
 
     # Assert: Check if the git push command was executed
@@ -252,7 +250,8 @@ def test_update_existing_pull_request(
     )
     mock_subprocess_run.assert_called_once_with(push_command, shell=True, capture_output=True, text=True)
 
-    # Assert: Check if the comment was posted to the PR
+    # Assert: Check if the summary comment was posted to the PR
+    expected_summary = "🤖 OpenHands Update Summary:\n\n**Change 1:**\nReply to comment 1\n\n**Change 2:**\nReply to comment 2\n\n"
     comment_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}/issues/{github_issue.number}/comments"
     mock_requests_post.assert_called_once_with(
         comment_url,
@@ -260,7 +259,7 @@ def test_update_existing_pull_request(
             "Authorization": f"token {github_token}",
             "Accept": "application/vnd.github.v3+json",
         },
-        json={"body": comment_message},
+        json={"body": expected_summary},
     )
 
     # Assert: Check if the reply_to_comment function was called for each thread ID
@@ -271,6 +270,7 @@ def test_update_existing_pull_request(
 
     # Assert: Check the returned PR URL
     assert result == f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
+
 
 
 
@@ -916,3 +916,6 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
     shlex_quote_message = shlex.quote(expected_commit_message)
     assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call
+
+
+

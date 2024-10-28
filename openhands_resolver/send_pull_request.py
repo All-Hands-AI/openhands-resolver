@@ -275,7 +275,7 @@ def update_existing_pull_request(
     github_token: str,
     github_username: str | None,
     patch_dir: str,
-    comment_message: str = "New openhands update",
+    comment_message: str | None = None,
     additional_message: str | None = None,
 ) -> str:
     # Set up headers and base URL for GitHub API
@@ -301,28 +301,32 @@ def update_existing_pull_request(
     pr_url = f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
     print(f"Updated pull request {pr_url} with new patches.")
 
-
     # Send PR Comments
-    # TODO: run a summary of all comment success indicators for PR message
-    if comment_message:
+    if additional_message and github_issue.thread_ids:
+        explanations = json.loads(additional_message)
+        
+        # Generate a summary of all replies
+        summary = "🤖 OpenHands Update Summary:\n\n"
+        for count, reply_comment in enumerate(explanations, 1):
+            summary += f"**Change {count}:**\n{reply_comment}\n\n"
+        
+        # Post the summary as a new comment
         comment_url = f"{base_url}/issues/{github_issue.number}/comments"
-        comment_data = {
-            "body": comment_message
-        }
+        comment_data = {"body": summary}
         comment_response = requests.post(comment_url, headers=headers, json=comment_data)
         if comment_response.status_code != 201:
             print(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
         else:
-            print(f"Comment added to the PR: {comment_message}")
-    
-    if additional_message and github_issue.thread_ids:
-        explanations = json.loads(additional_message)
+            print(f"Summary comment added to the PR")
+        
+        # Reply to individual comment threads
         for count in range(len(github_issue.thread_ids)):
             reply_comment = explanations[count]
             comment_id = github_issue.thread_ids[count]
             reply_to_comment(github_token, comment_id, reply_comment)
     
     return pr_url
+
 
 
 def process_single_issue(
@@ -498,3 +502,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
