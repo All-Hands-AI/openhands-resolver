@@ -44,6 +44,10 @@ The workflow will:
 
 If you want to instead run the resolver on your own programmatically.
 
+
+
+
+
 ```bash
 pip install openhands-resolver
 ```
@@ -68,9 +72,17 @@ export LLM_MODEL="anthropic/claude-3-5-sonnet-20240620"
 export LLM_API_KEY="sk_test_12345"
 ```
 
-## Running the agent to resolve issues
+## Resolving Issues
 
-After installing the package, you can run the agent to resolve issues using the following command:
+The resolver can automatically attempt to fix issues in your repository. When you run the resolver:
+
+1. It analyzes the issue description and comments
+2. Attempts to understand and reproduce the problem
+3. Develops and tests a solution
+4. Creates appropriate changes in a new branch
+5. Can create either a draft PR or push the branch directly
+
+You can run the resolver using the following command:
 
 ```bash
 python -m openhands_resolver.resolve_issues --repo [OWNER]/[REPO]
@@ -97,12 +109,27 @@ If you've installed the package from source using poetry, you can still use the 
 poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
 ```
 
+
+
+
+## Responding to PR Comments
+
+The resolver can also respond to comments on pull requests. When a comment is made on a PR:
+
+1. The resolver analyzes the comment and the PR context
+2. Understands the requested changes or questions
+3. Makes appropriate code modifications if needed
+4. Responds to the comment with explanations or updates
+5. Can update the PR with new commits if code changes are required
+
+This functionality is available both through the GitHub Actions workflow and when running the resolver locally.
+
 ## Visualizing successful PRs
 
 To find successful PRs, you can run the following command:
 
 ```bash
-grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*//g'
+grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*//g'
 ```
 
 Then you can go through and visualize the ones you'd like.
@@ -114,7 +141,7 @@ python -m openhands_resolver.visualize_resolver_output --issue-number ISSUE_NUMB
 ## Uploading PRs
 
 If you find any PRs that were successful, you can upload them.
-There are three ways you can upload
+There are three ways you can upload:
 
 1. `branch` - upload a branch without creating a PR
 2. `draft` - create a draft PR
@@ -124,7 +151,7 @@ There are three ways you can upload
 python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft
 ```
 
-If you want to upload to a fork, you can do so by specifying the `fork-owner`.
+If you want to upload to a fork, you can do so by specifying the `fork-owner`:
 
 ```bash
 python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
@@ -134,3 +161,4 @@ python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --git
 
 If you have any issues, please open an issue on this github repo, we're happy to help!
 Alternatively, you can [email us](mailto:contact@all-hands.dev) or join the [OpenHands Slack workspace](https://join.slack.com/t/opendevin/shared_invite/zt-2oikve2hu-UDxHeo8nsE69y6T7yFX_BA) and ask there.
+
