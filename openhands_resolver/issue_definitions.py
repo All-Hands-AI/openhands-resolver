@@ -154,24 +154,24 @@ class PRHandler(IssueHandler):
     def __init__(self, owner: str, repo: str, token: str):
         super().__init__(owner, repo, token)
         self.download_url = "https://api.github.com/repos/{}/{}/pulls"
+        self.llm_config = None  # Will be set during get_converted_issues
 
 
-
-    def __download_pr_metadata(self, pull_number: int):
+    def __download_pr_metadata(self, pull_number: int, llm_config: LLMConfig):
     
         """
             Run a GraphQL query against the GitHub API for information on 
-                1. unresolved review comments
+                1. unresolved review comments (summarized using LLM)
                 2. referenced issues the pull request would close
 
             Args:
-                query: The GraphQL query as a string.
-                variables: A dictionary of variables for the query.
-                token: Your GitHub personal access token.
-
+                pull_number: The PR number to query
+                llm_config: Configuration for the language model to use for summarization
+                
             Returns:
-                The JSON response from the GitHub API.
+                Tuple of (closing_issues_bodies, unresolved_comments, thread_ids)
         """
+
         # Using graphql as REST API doesn't indicate resolved status for review comments
         # TODO: grabbing the first 10 issues, 100 review threads, and 100 coments; add pagination to retrieve all
         query = """
@@ -240,15 +240,26 @@ class PRHandler(IssueHandler):
                 id = node.get("id")
                 thread_ids.append(id)
                 comments = node.get("comments", {}).get("nodes", [])
-                message = ""
-                for i, comment in enumerate(comments):
-                    if i == len(comments) - 1:  # Check if it's the last comment in the thread
-                        if len(comments) > 1:
-                            message += "---\n"  # Add "---" before the last message if there's more than one comment
-                        message += "latest feedback:\n" + comment["body"] + "\n"
-                    else:
-                        message += comment["body"] + "\n"  # Add each comment in a new line
-                unresolved_comments.append(message)
+                # Combine all comments into a single string
+                all_comments = "\n".join([comment["body"] for comment in comments])
+                
+                # Use LLM to summarize the feedback
+                summary_prompt = f"""Summarize the following feedback from a code review thread into a concise, actionable format:
+
+{all_comments}
+
+Provide a clear, focused summary that captures the key points and requested changes."""
+
+                response = litellm.completion(
+                    model=llm_config.model,
+                    messages=[{"role": "user", "content": summary_prompt}],
+                    api_key=llm_config.api_key,
+                    base_url=llm_config.base_url,
+                )
+                
+                summary = response.choices[0].message.content.strip()
+                unresolved_comments.append(summary)
+
 
         return closing_issues_bodies, unresolved_comments, thread_ids
 
@@ -259,14 +270,18 @@ class PRHandler(IssueHandler):
         converted_issues = []
         for issue in all_issues:
             if any([issue.get(key) is None for key in ["number", "title", "body"]]):
+
                 logger.warning(
                     f"Skipping issue {issue} as it is missing number, title, or body."
                 )
                 continue            
 
-            closing_issues, unresolved_comments, thread_ids = self.__download_pr_metadata(issue["number"])
+            if not self.llm_config:
+                self.llm_config = LLMConfig()  # Use default config if not set
+            closing_issues, unresolved_comments, thread_ids = self.__download_pr_metadata(issue["number"], self.llm_config)
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
+
                                 owner=self.owner,
                                 repo=self.repo,
                                 number=issue["number"],
@@ -350,3 +365,13 @@ class PRHandler(IssueHandler):
         
         success = all(success_list)
         return success, success_list, json.dumps(explanation_list)
+
+
+
+
+
+
+
+
+
+
