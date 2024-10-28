@@ -225,8 +225,9 @@ def test_update_existing_pull_request(
     github_token = "test-token"
     github_username = "test-user"
     patch_dir = "/path/to/patch"
-    comment_message = "New openhands update"
+    comment_message = "I have made updates to address the review comments:\n\n- Reply to comment 1\n- Reply to comment 2"
     additional_message = '["Reply to comment 1", "Reply to comment 2"]'
+
 
     # Mock the subprocess.run call for git push
     mock_subprocess_run.return_value = MagicMock(returncode=0)
@@ -552,8 +553,10 @@ def test_process_single_pr_update(
         github_token=github_token,
         github_username=github_username,
         patch_dir=f"{mock_output_dir}/patches/pr_1",
+        comment_message="I have made updates to address the review comments:\n\n- Test success 1",
         additional_message="[Test success 1]",
     )
+
 
 
 
@@ -916,3 +919,5 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
     shlex_quote_message = shlex.quote(expected_commit_message)
     assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call
+
+

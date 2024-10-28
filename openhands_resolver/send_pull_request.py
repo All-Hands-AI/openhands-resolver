@@ -275,9 +275,10 @@ def update_existing_pull_request(
     github_token: str,
     github_username: str | None,
     patch_dir: str,
-    comment_message: str = "New openhands update",
+    comment_message: str,  # Remove default value to ensure message is always provided
     additional_message: str | None = None,
 ) -> str:
+
     # Set up headers and base URL for GitHub API
     headers = {
         "Authorization": f"token {github_token}",
@@ -367,14 +368,22 @@ def process_single_issue(
     make_commit(patched_repo_dir, resolver_output.issue, issue_type)
 
     if issue_type == "pr":
+        # Parse the explanations and create a summary message
+        explanations = json.loads(resolver_output.success_explanation)
+        summary_message = "I have made updates to address the review comments:\n\n"
+        for explanation in explanations:
+            summary_message += f"- {explanation}\n"
+        
         update_existing_pull_request(
             github_issue=resolver_output.issue,
             github_token=github_token,
             github_username=github_username,
             patch_dir=patched_repo_dir,
+            comment_message=summary_message,
             additional_message=resolver_output.success_explanation
         )
     else:
+
         send_pull_request(
             github_issue=resolver_output.issue,
             github_token=github_token,
@@ -498,3 +507,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
