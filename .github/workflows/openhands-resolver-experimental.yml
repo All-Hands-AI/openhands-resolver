@@ -20,6 +20,8 @@ on:
 
   issues:
     types: [labeled]
+  pull_request:
+    types: [labeled]
 
 permissions:
   contents: write
@@ -55,19 +57,28 @@ jobs:
             fi
           done
 
-      - name: Set issue number
-        run: echo "ISSUE_NUMBER=${{ github.event.issue.number || inputs.issue_number }}" >> $GITHUB_ENV
+      - name: Set issue number and type
+        run: |
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "ISSUE_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+            echo "ISSUE_TYPE=pr" >> $GITHUB_ENV
+          else
+            echo "ISSUE_NUMBER=${{ github.event.issue.number || inputs.issue_number }}" >> $GITHUB_ENV
+            echo "ISSUE_TYPE=issue" >> $GITHUB_ENV
+          fi
 
       - name: Comment on issue with start message
         uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            github.rest.issues.createComment({
+            const issueType = process.env.ISSUE_TYPE;
+            const endpoint = issueType === 'pr' ? 'pulls' : 'issues';
+            github.rest[endpoint].createComment({
               issue_number: ${{ env.ISSUE_NUMBER }},
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `OpenHands started fixing the issue! You can monitor the progress [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`
+              body: `OpenHands started fixing the ${issueType}! You can monitor the progress [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`
             });
 
       - name: Install dependencies
@@ -85,7 +96,8 @@ jobs:
         run: |
           cd /tmp && python -m openhands_resolver.resolve_issues \
             --repo ${{ github.repository }} \
-            --issue-numbers ${{ env.ISSUE_NUMBER }}
+            --issue-numbers ${{ env.ISSUE_NUMBER }} \
+            --issue-type ${{ env.ISSUE_TYPE }}
 
       - name: Check resolution result
         id: check_result
@@ -161,3 +173,4 @@ jobs:
                 body: `The workflow to fix this issue encountered an error. Please check the workflow logs for more information.`
               });
             }
+
