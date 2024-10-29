@@ -1,11 +1,11 @@
-# OpenHands Github Backlog Resolver 🙌
+# OpenHands Github Issue Resolver 🙌
 
-Do you have a bunch of open github issues that need to be resolved but no
+Do you have a github issue that needs to be resolved but no
 time to do it? What about asking an AI agent to do it for you instead?
 
-This tool allows you to do just that, point towards a github repository,
+This tool allows you to do just that - point it towards a github issue,
 and you can use open-source AI agents based on [OpenHands](https://github.com/all-hands-ai/openhands)
-to attempt to resolve issues for you.
+to attempt to resolve it for you.
 
 It's quite simple to get setup, just follow the instructions below.
 
@@ -31,7 +31,6 @@ Follow the steps to use this workflow in your own repository, and feel free to c
    - `LLM_API_KEY`: Your API key for the LLM service
    - `LLM_BASE_URL`: The base URL for the LLM API (optional, only if using a proxy)
 
-
 6. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
 
 The workflow will:
@@ -43,6 +42,9 @@ The workflow will:
 ## Installation
 
 If you want to instead run the resolver on your own programmatically.
+
+
+
 
 ```bash
 pip install openhands-resolver
@@ -68,33 +70,46 @@ export LLM_MODEL="anthropic/claude-3-5-sonnet-20240620"
 export LLM_API_KEY="sk_test_12345"
 ```
 
-## Running the agent to resolve issues
+## Running the agent to resolve an issue
 
-After installing the package, you can run the agent to resolve issues using the following command:
+After installing the package, you can run the agent to resolve a single issue using the following command:
 
 ```bash
-python -m openhands_resolver.resolve_issues --repo [OWNER]/[REPO]
+python -m openhands_resolver.resolve_issue --repo [OWNER]/[REPO] --issue-number [ISSUE_NUMBER]
 ```
 
-For instance, if you want to resolve issues in this repo, you would run:
+For instance, if you want to resolve issue #100 in this repo, you would run:
 
 ```bash
-python -m openhands_resolver.resolve_issues --repo all-hands-ai/openhands-resolver
+python -m openhands_resolver.resolve_issue --repo all-hands-ai/openhands-resolver --issue-number 100
 ```
 
 The output will be written to the `output/` directory.
 
-Alternatively, if you only want to resolve a subset of the issues, you can specify a
-list of issues to resolve. For instance, if you want to resolve issues 100 and 101, you can run:
-
-```bash
-python -m openhands_resolver.resolve_issues --repo all-hands-ai/openhands-resolver --issue-numbers 100,101
-```
-
 If you've installed the package from source using poetry, you can still use the previous method:
 
 ```bash
-poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
+poetry run python openhands_resolver/resolve_issue.py --repo all-hands-ai/openhands-resolver --issue-number 100
+```
+
+## Resolving multiple issues
+
+If you want to resolve multiple issues at once, you can use the `resolve_all_issues` command:
+
+```bash
+python -m openhands_resolver.resolve_all_issues --repo [OWNER]/[REPO] --issue-numbers [COMMA_SEPARATED_NUMBERS]
+```
+
+For example, to resolve issues 100 and 101:
+
+```bash
+python -m openhands_resolver.resolve_all_issues --repo all-hands-ai/openhands-resolver --issue-numbers 100,101
+```
+
+You can also resolve all open issues in a repository by omitting the `--issue-numbers` flag:
+
+```bash
+python -m openhands_resolver.resolve_all_issues --repo all-hands-ai/openhands-resolver
 ```
 
 ## Visualizing successful PRs
@@ -102,7 +117,7 @@ poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openh
 To find successful PRs, you can run the following command:
 
 ```bash
-grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*//g'
+grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*//g'
 ```
 
 Then you can go through and visualize the ones you'd like.
@@ -134,3 +149,4 @@ python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --git
 
 If you have any issues, please open an issue on this github repo, we're happy to help!
 Alternatively, you can [email us](mailto:contact@all-hands.dev) or join the [OpenHands Slack workspace](https://join.slack.com/t/opendevin/shared_invite/zt-2oikve2hu-UDxHeo8nsE69y6T7yFX_BA) and ask there.
+
