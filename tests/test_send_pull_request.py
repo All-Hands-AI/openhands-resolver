@@ -552,7 +552,7 @@ def test_process_single_pr_update(
     )
 
     process_single_issue(
-        mock_output_dir, resolver_output, github_token, github_username, pr_type, None, False, mock_llm_config
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, mock_llm_config, None, False
     )
 
     mock_initialize_repo.assert_called_once_with(mock_output_dir, 1, "pr", "branch 1")
@@ -621,7 +621,7 @@ def test_process_single_issue(
 
     # Call the function
     process_single_issue(
-        mock_output_dir, resolver_output, github_token, github_username, pr_type, None, False, mock_llm_config
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, mock_llm_config, None, False
     )
 
     # Assert that the mocked functions were called with correct arguments
@@ -683,7 +683,7 @@ def test_process_single_issue_unsuccessful(
 
     # Call the function
     process_single_issue(
-        mock_output_dir, resolver_output, github_token, github_username, pr_type, None, False, mock_llm_config
+        mock_output_dir, resolver_output, github_token, github_username, pr_type, mock_llm_config, None, False
     )
 
     # Assert that none of the mocked functions were called
@@ -787,9 +787,9 @@ def test_process_all_successful_issues(
                 "github_token",
                 "github_username",
                 "draft",
+                mock_llm_config,
                 None,
                 False,
-                mock_llm_config,
             ),
             call(
                 "output_dir",
@@ -797,9 +797,9 @@ def test_process_all_successful_issues(
                 "github_token",
                 "github_username",
                 "draft",
+                mock_llm_config,
                 None,
                 False,
-                mock_llm_config,
             ),
         ]
     )
