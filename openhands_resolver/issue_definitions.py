@@ -167,20 +167,15 @@ class IssueHandler(IssueHandlerInterface):
         """Guess if the issue is fixed based on the history and the issue description."""
        
         last_message = history.get_events_as_list()[-1].message    
-        prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
-
-        prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
-
-
-
-    def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
-        """Guess if the issue is fixed based on the history and the issue description."""
-       
-        last_message = history.get_events_as_list()[-1].message    
+        # Include thread comments in the prompt if they exist
+        issue_context = issue.body
+        if issue.thread_comments:
+            issue_context += "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
+            
         prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
 
         Issue description:
-        {issue.body}
+        {issue_context}
 
         Last message from AI agent:
         {last_message}
@@ -198,6 +193,7 @@ class IssueHandler(IssueHandlerInterface):
         """
 
         response = litellm.completion(
+
             model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
             api_key=llm_config.api_key,
@@ -416,6 +412,7 @@ class PRHandler(IssueHandler):
         
         success = all(success_list)
         return success, success_list, json.dumps(explanation_list)
+
 
 
 

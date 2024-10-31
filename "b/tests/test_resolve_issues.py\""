@@ -1,0 +1,27 @@
+def test_instruction_with_thread_comments():
+    # Create an issue with thread comments
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=123,
+        title="Test Issue",
+        body="This is a test issue",
+        thread_comments=["First comment", "Second comment", "latest feedback:\nPlease add tests"]
+    )
+    
+    # Load the basic prompt template
+    with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
+        prompt = f.read()
+    
+    issue_handler = IssueHandler("owner", "repo", "token")
+    instruction = issue_handler.get_instruction(issue, prompt, None)
+    
+    # Verify that thread comments are included in the instruction
+    assert "First comment" in instruction
+    assert "Second comment" in instruction
+    assert "Please add tests" in instruction
+    assert "Issue Thread Comments:" in instruction
+
+
+def test_guess_success_failure():
+    mock_issue = GithubIssue(

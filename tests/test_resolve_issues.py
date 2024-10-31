@@ -387,7 +387,7 @@ def test_file_instruction():
     # load prompt from openhands_resolver/prompts/resolve/basic.jinja
     with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
         prompt = f.read()
-    
+    # Test without thread comments
     issue_handler = IssueHandler("owner", "repo", "token")
     instruction = issue_handler.get_instruction(issue, prompt, None)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
@@ -399,7 +399,7 @@ This is a test issue
 IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
 You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 
-When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
+When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>"""
 
     assert instruction == expected_instruction
 
@@ -469,6 +469,83 @@ def test_guess_success():
         assert comment_success is None
         assert success
         assert explanation == "Issue resolved successfully"
+def test_guess_success_with_thread_comments():
+    mock_issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=1,
+        title="Test Issue",
+        body="This is a test issue",
+        thread_comments=["First comment", "Second comment", "latest feedback:\nPlease add tests"]
+    )
+    mock_history = MagicMock(spec=ShortTermHistory)
+    mock_history.get_events_as_list.return_value = [
+        MagicMock(message="I have added tests for this case")
+    ]
+    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+
+    mock_completion_response = MagicMock()
+    mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\ntrue\n--- explanation\nTests have been added to verify thread comments handling"))]
+    issue_handler = IssueHandler("owner", "repo", "token")
+
+    with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
+        success, comment_success, explanation = issue_handler.guess_success(mock_issue, mock_history, mock_llm_config)
+        assert issue_handler.issue_type == "issue"
+        assert comment_success is None
+        assert success
+        assert "Tests have been added" in explanation
+
+
+def test_instruction_with_thread_comments():
+    # Create an issue with thread comments
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=123,
+        title="Test Issue",
+        body="This is a test issue",
+        thread_comments=["First comment", "Second comment", "latest feedback:\nPlease add tests"]
+    )
+    
+    # Load the basic prompt template
+    with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
+        prompt = f.read()
+    
+    issue_handler = IssueHandler("owner", "repo", "token")
+    instruction = issue_handler.get_instruction(issue, prompt, None)
+    
+    # Verify that thread comments are included in the instruction
+    assert "First comment" in instruction
+    assert "Second comment" in instruction
+    assert "Please add tests" in instruction
+    assert "Issue Thread Comments:" in instruction
+
+
+def test_guess_success_failure():
+    mock_issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=1,
+        title="Test Issue",
+        body="This is a test issue",
+        thread_comments=["First comment", "Second comment", "latest feedback:\nPlease add tests"]
+    )
+    mock_history = MagicMock(spec=ShortTermHistory)
+    mock_history.get_events_as_list.return_value = [
+        MagicMock(message="I have added tests for this case")
+    ]
+    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+
+    mock_completion_response = MagicMock()
+    mock_completion_response.choices = [MagicMock(message=MagicMock(content="--- success\ntrue\n--- explanation\nTests have been added to verify thread comments handling"))]
+    issue_handler = IssueHandler("owner", "repo", "token")
+
+    with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
+        success, comment_success, explanation = issue_handler.guess_success(mock_issue, mock_history, mock_llm_config)
+        assert issue_handler.issue_type == "issue"
+        assert comment_success is None
+        assert success
+        assert "Tests have been added" in explanation
 
 
 def test_guess_success_failure():
@@ -480,6 +557,16 @@ def test_guess_success_failure():
         body="This is a test issue",
     )
     mock_history = MagicMock(spec=ShortTermHistory)
+    mock_history.get_events_as_list.return_value = [
+        create_cmd_output(
+            exit_code=0,
+            content="",
+            command_id=1,
+            command="cd /workspace"
+        )
+    ]
+    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+
     mock_history.get_events_as_list.return_value = [
         create_cmd_output(
             exit_code=0,
@@ -536,3 +623,9 @@ def test_guess_success_invalid_output():
 
 if __name__ == "__main__":
     pytest.main()
+
+
+
+
+
+
