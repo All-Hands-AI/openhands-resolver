@@ -74,15 +74,7 @@ export LLM_API_KEY="sk_test_12345"
 
 ## Resolving Issues
 
-The resolver can automatically attempt to fix issues in your repository. When you run the resolver:
-
-1. It analyzes the issue description and comments
-2. Attempts to understand and reproduce the problem
-3. Develops and tests a solution
-4. Creates appropriate changes in a new branch
-5. Can create either a draft PR or push the branch directly
-
-You can run the resolver using the following command:
+The resolver can automatically attempt to fix issues in your repository using the following command:
 
 ```bash
 python -m openhands_resolver.resolve_issues --repo [OWNER]/[REPO]
@@ -111,18 +103,10 @@ poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openh
 
 ## Responding to PR Comments
 
-The resolver can also respond to comments on pull requests. When a comment is made on a PR:
-
-1. The resolver analyzes the comment and the PR context
-2. Understands the requested changes or questions
-3. Makes appropriate code modifications if needed
-4. Responds to the comment with explanations or updates
-5. Can update the PR with new commits if code changes are required
-
-You can run the resolver to respond to PR comments using:
+The resolver can also respond to comments on pull requests using:
 
 ```bash
-python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --respond-to-comments
+python -m openhands_resolver.send_pull_request --issue-number PR_NUMBER --issue-type pr
 ```
 
 This functionality is available both through the GitHub Actions workflow and when running the resolver locally.
@@ -132,7 +116,7 @@ This functionality is available both through the GitHub Actions workflow and whe
 To find successful PRs, you can run the following command:
 
 ```bash
-grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*//g'
+grep '"success":true' output/output.jsonl | sed 's/.*\("number":[0-9]*\).*/\1/g'
 ```
 
 Then you can go through and visualize the ones you'd like.
