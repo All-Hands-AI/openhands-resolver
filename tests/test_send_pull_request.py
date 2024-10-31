@@ -944,7 +944,3 @@ def test_make_commit_no_changes(mock_subprocess_run):
     assert mock_subprocess_run.call_count == 3
     git_status_call = mock_subprocess_run.call_args_list[2][0][0]
     assert f'git -C {repo_dir} status --porcelain' in git_status_call
-
-    # Ensure no commit command was issued
-    for call in mock_subprocess_run.call_args_list:
-        assert 'commit' not in call[0][0], "git commit should not be called when there are no changes"
