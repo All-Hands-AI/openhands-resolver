@@ -22,8 +22,8 @@ class IssueHandlerInterface(ABC):
         pass
     
     @abstractmethod
-    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> str:
-        """Generate instruction for the agent."""
+    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> tuple[str, list[str]]:
+        """Generate instruction and image urls for the agent."""
         pass
     
     @abstractmethod
@@ -70,7 +70,11 @@ class IssueHandler(IssueHandlerInterface):
             params["page"] += 1
 
         return all_issues
-    
+    def _extract_image_urls(self, issue_body: str) -> list[str]:
+        # Regular expression to match Markdown image syntax ![alt text](image_url)
+        image_pattern = r'!\[.*?\]\((https?://[^\s)]+)\)'
+        return re.findall(image_pattern, issue_body)
+
     def _get_issue_comments(self, issue_number: int) -> list[str]:
         """Download comments for a specific issue from Github."""
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}/comments"
@@ -115,7 +119,6 @@ class IssueHandler(IssueHandlerInterface):
             
             # Get issue thread comments
             thread_comments = self._get_issue_comments(issue["number"])
-            
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
@@ -128,15 +131,19 @@ class IssueHandler(IssueHandlerInterface):
             converted_issues.append(issue_details)
         return converted_issues
 
-    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> str:
+    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> tuple[str, list[str]]:
         """Generate instruction for the agent"""
         # Format thread comments if they exist
         thread_context = ""
         if issue.thread_comments:
             thread_context = "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
         
+        images = []
+        images.extend(self._extract_image_urls(issue.body))
+        images.extend(self._extract_image_urls(thread_context))
+
         template = jinja2.Template(prompt_template)
-        return template.render(body=issue.body + thread_context, repo_instruction=repo_instruction)
+        return template.render(body=issue.body + thread_context, repo_instruction=repo_instruction), images
 
 
 
@@ -334,7 +341,7 @@ class PRHandler(IssueHandler):
         return converted_issues
 
 
-    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> str:
+    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> tuple[str, list[str]]:
         """Generate instruction for the agent"""
         template = jinja2.Template(prompt_template)
 
@@ -348,8 +355,12 @@ class PRHandler(IssueHandler):
         comment_chain = json.dumps(comments, indent=4)
         files = json.dumps(comment_files, indent=4)
 
+        images = []
+        images.extend(self._extract_image_urls(issues_context))
+        images.extend(self._extract_image_urls(comment_chain))
+
         instruction = template.render(issues=issues_context, files=files, body=comment_chain, repo_instruction=repo_instruction)
-        return instruction
+        return instruction, images
     
 
     def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
