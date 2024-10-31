@@ -195,6 +195,7 @@ class PRHandler(IssueHandler):
                                             totalCount
                                             nodes {
                                                 body
+                                                path
                                             }
                                         }
                                     }
@@ -241,6 +242,7 @@ class PRHandler(IssueHandler):
                 thread_ids.append(id)
                 comments = node.get("comments", {}).get("nodes", [])
                 message = ""
+                files = []
                 for i, comment in enumerate(comments):
                     if i == len(comments) - 1:  # Check if it's the last comment in the thread
                         if len(comments) > 1:
@@ -248,7 +250,16 @@ class PRHandler(IssueHandler):
                         message += "latest feedback:\n" + comment["body"] + "\n"
                     else:
                         message += comment["body"] + "\n"  # Add each comment in a new line
-                unresolved_comments.append(message)
+                    
+                    file = comment.get("path")
+                    if file:
+                        files.append(file)
+
+                unresolved_comment = {
+                    "comment": message,
+                    "files": files
+                }
+                unresolved_comments.append(unresolved_comment)
 
         return closing_issues_bodies, unresolved_comments, thread_ids
 
