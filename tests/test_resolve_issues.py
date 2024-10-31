@@ -557,7 +557,7 @@ def test_guess_success_failure():
         assert "Tests have been added" in explanation
 
 
-def test_guess_success_failure():
+def test_guess_success_negative_case():
     mock_issue = GithubIssue(
         owner="test_owner",
         repo="test_repo",
@@ -566,16 +566,6 @@ def test_guess_success_failure():
         body="This is a test issue",
     )
     mock_history = MagicMock(spec=ShortTermHistory)
-    mock_history.get_events_as_list.return_value = [
-        create_cmd_output(
-            exit_code=0,
-            content="",
-            command_id=1,
-            command="cd /workspace"
-        )
-    ]
-    mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
-
     mock_history.get_events_as_list.return_value = [
         create_cmd_output(
             exit_code=0,
