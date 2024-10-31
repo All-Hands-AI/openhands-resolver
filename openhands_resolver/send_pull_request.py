@@ -275,7 +275,7 @@ def update_existing_pull_request(
     github_token: str,
     github_username: str | None,
     patch_dir: str,
-    comment_message: str = "New openhands update",
+    comment_message: str | None = None,
     additional_message: str | None = None,
 ) -> str:
     # Set up headers and base URL for GitHub API
@@ -301,9 +301,18 @@ def update_existing_pull_request(
     pr_url = f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
     print(f"Updated pull request {pr_url} with new patches.")
 
+    # Generate a summary of all comment success indicators for PR message
+    if not comment_message and additional_message:
+        try:
+            explanations = json.loads(additional_message)
+            if explanations:
+                comment_message = "OpenHands has updated the PR with the following changes:\n\n"
+                for explanation in explanations:
+                    comment_message += f"- {explanation}\n"
+        except (json.JSONDecodeError, TypeError):
+            comment_message = "New OpenHands update"
 
-    # Send PR Comments
-    # TODO: run a summary of all comment success indicators for PR message
+    # Post a comment on the PR
     if comment_message:
         comment_url = f"{base_url}/issues/{github_issue.number}/comments"
         comment_data = {
@@ -314,14 +323,14 @@ def update_existing_pull_request(
             print(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
         else:
             print(f"Comment added to the PR: {comment_message}")
-    
+
+    # Reply to each unresolved comment thread
     if additional_message and github_issue.thread_ids:
         explanations = json.loads(additional_message)
-        for count in range(len(github_issue.thread_ids)):
-            reply_comment = explanations[count]
+        for count, reply_comment in enumerate(explanations):
             comment_id = github_issue.thread_ids[count]
             reply_to_comment(github_token, comment_id, reply_comment)
-    
+
     return pr_url
 
 
@@ -498,3 +507,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+

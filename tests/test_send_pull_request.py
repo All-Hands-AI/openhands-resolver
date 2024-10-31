@@ -225,8 +225,7 @@ def test_update_existing_pull_request(
     github_token = "test-token"
     github_username = "test-user"
     patch_dir = "/path/to/patch"
-    comment_message = "New openhands update"
-    additional_message = '["Reply to comment 1", "Reply to comment 2"]'
+    additional_message = '["Fixed bug in function A", "Updated documentation for B"]'
 
     # Mock the subprocess.run call for git push
     mock_subprocess_run.return_value = MagicMock(returncode=0)
@@ -234,14 +233,14 @@ def test_update_existing_pull_request(
     # Mock the requests.post call for adding a PR comment
     mock_requests_post.return_value.status_code = 201
 
-    # Act: Call the function
+    # Act: Call the function without comment_message to test auto-generation
     result = update_existing_pull_request(
         github_issue,
         github_token,
         github_username,
         patch_dir,
-        comment_message,
-        additional_message,
+        comment_message=None,
+        additional_message=additional_message,
     )
 
     # Assert: Check if the git push command was executed
@@ -252,16 +251,18 @@ def test_update_existing_pull_request(
     )
     mock_subprocess_run.assert_called_once_with(push_command, shell=True, capture_output=True, text=True)
 
-    # Assert: Check if the comment was posted to the PR
+    # Assert: Check if the auto-generated comment was posted to the PR
     comment_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}/issues/{github_issue.number}/comments"
+    expected_comment = "OpenHands has updated the PR with the following changes:\n\n- Fixed bug in function A\n- Updated documentation for B\n"
     mock_requests_post.assert_called_once_with(
         comment_url,
         headers={
             "Authorization": f"token {github_token}",
             "Accept": "application/vnd.github.v3+json",
         },
-        json={"body": comment_message},
+        json={"body": expected_comment},
     )
+
 
     # Assert: Check if the reply_to_comment function was called for each thread ID
     mock_reply_to_comment.assert_has_calls([
@@ -916,3 +917,4 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
     shlex_quote_message = shlex.quote(expected_commit_message)
     assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call
+
