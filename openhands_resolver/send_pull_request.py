@@ -1,6 +1,8 @@
 import argparse
 import os
 import shutil
+
+import litellm
 from openhands_resolver.github_issue import GithubIssue
 from openhands_resolver.io_utils import (
     load_all_resolver_outputs,
@@ -12,6 +14,7 @@ import subprocess
 import shlex
 import json
 
+from openhands.core.config import LLMConfig
 from openhands_resolver.resolver_output import ResolverOutput
 
 
@@ -22,12 +25,13 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             print("Warning: Could not determine file to patch")
             continue
 
+        # Remove both "a/" and "b/" prefixes from paths
         old_path = (
-            os.path.join(repo_dir, diff.header.old_path.removeprefix("b/"))
+            os.path.join(repo_dir, diff.header.old_path.removeprefix("a/").removeprefix("b/"))
             if diff.header.old_path and diff.header.old_path != "/dev/null"
             else None
         )
-        new_path = os.path.join(repo_dir, diff.header.new_path.removeprefix("b/"))
+        new_path = os.path.join(repo_dir, diff.header.new_path.removeprefix("a/").removeprefix("b/"))
 
         # Check if the file is being deleted
         if diff.header.new_path == "/dev/null":
@@ -35,6 +39,13 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             if os.path.exists(old_path):
                 os.remove(old_path)
                 print(f"Deleted file: {old_path}")
+            continue
+
+        # Handle file rename
+        if old_path and new_path and "rename from" in patch:
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            shutil.copy2(old_path, new_path)
+            os.remove(old_path)
             continue
 
         if old_path:
@@ -163,6 +174,7 @@ def send_pull_request(
     github_token: str,
     github_username: str | None,
     patch_dir: str,
+    llm_config: LLMConfig,
     pr_type: str,
     fork_owner: str | None = None,
     additional_message: str | None = None,
@@ -287,9 +299,22 @@ def update_existing_pull_request(
     github_token: str,
     github_username: str | None,
     patch_dir: str,
-    comment_message: str = "New openhands update",
+    llm_config: LLMConfig,
+    comment_message: str | None = None,
     additional_message: str | None = None,
 ) -> str:
+    """Update an existing pull request with the new patches.
+
+    Args:
+        github_issue: The issue to update.
+        github_token: The GitHub token to use for authentication.
+        github_username: The GitHub username to use for authentication.
+        patch_dir: The directory containing the patches to apply.
+        llm_config: The LLM configuration to use for summarizing changes.
+        comment_message: The main message to post as a comment on the PR.
+        additional_message: The additional messages to post as a comment on the PR in json list format.
+    """
+
     # Set up headers and base URL for GitHub API
     headers = {
         "Authorization": f"token {github_token}",
@@ -313,9 +338,30 @@ def update_existing_pull_request(
     pr_url = f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
     print(f"Updated pull request {pr_url} with new patches.")
 
+    # Generate a summary of all comment success indicators for PR message
+    if not comment_message and additional_message:
+        try:
+            explanations = json.loads(additional_message)
+            if explanations:
+                comment_message = "OpenHands made the following changes to resolve the issues:\n\n"
+                for explanation in explanations:
+                    comment_message += f"- {explanation}\n"
 
-    # Send PR Comments
-    # TODO: run a summary of all comment success indicators for PR message
+                # Summarize with LLM if provided
+                if llm_config is not None:
+                    prompt = f"Please create a concise overview of the following changes, commenting on whether all issues have been successfully resolved or if there are still issues remaining:\n\n{comment_message}"
+                    response = litellm.completion(
+                        model=llm_config.model,
+                        messages=[{"role": "user", "content": prompt}],
+                        api_key=llm_config.api_key,
+                        base_url=llm_config.base_url,
+                    ) 
+                    comment_message = response.choices[0].message.content.strip()
+
+        except (json.JSONDecodeError, TypeError):
+            comment_message = "New OpenHands update"
+
+    # Post a comment on the PR
     if comment_message:
         comment_url = f"{base_url}/issues/{github_issue.number}/comments"
         comment_data = {
@@ -326,14 +372,14 @@ def update_existing_pull_request(
             print(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
         else:
             print(f"Comment added to the PR: {comment_message}")
-    
+
+    # Reply to each unresolved comment thread
     if additional_message and github_issue.thread_ids:
         explanations = json.loads(additional_message)
-        for count in range(len(github_issue.thread_ids)):
-            reply_comment = explanations[count]
+        for count, reply_comment in enumerate(explanations):
             comment_id = github_issue.thread_ids[count]
             reply_to_comment(github_token, comment_id, reply_comment)
-    
+
     return pr_url
 
 
@@ -343,6 +389,7 @@ def process_single_issue(
     github_token: str,
     github_username: str,
     pr_type: str,
+    llm_config: LLMConfig,
     fork_owner: str | None,
     send_on_failure: bool,
 ) -> None:
@@ -384,7 +431,8 @@ def process_single_issue(
             github_token=github_token,
             github_username=github_username,
             patch_dir=patched_repo_dir,
-            additional_message=resolver_output.success_explanation
+            additional_message=resolver_output.success_explanation,
+            llm_config=llm_config,
         )
     else:
         send_pull_request(
@@ -393,6 +441,7 @@ def process_single_issue(
             github_username=github_username,
             patch_dir=patched_repo_dir,
             pr_type=pr_type,
+            llm_config=llm_config,
             fork_owner=fork_owner,
             additional_message=resolver_output.success_explanation,
         )
@@ -403,6 +452,7 @@ def process_all_successful_issues(
     github_token: str,
     github_username: str,
     pr_type: str,
+    llm_config: LLMConfig,
     fork_owner: str | None,
 ) -> None:
     output_path = os.path.join(output_dir, "output.jsonl")
@@ -415,6 +465,7 @@ def process_all_successful_issues(
                 github_token,
                 github_username,
                 pr_type,
+                llm_config,
                 fork_owner,
                 False,
             )
@@ -464,6 +515,24 @@ def main():
         action="store_true",
         help="Send a pull request even if the issue was not successfully resolved.",
     )
+    parser.add_argument(
+        "--llm-model",
+        type=str,
+        default=None,
+        help="LLM model to use for summarizing changes.",
+    )
+    parser.add_argument(
+        "--llm-api-key",
+        type=str,
+        default=None,
+        help="API key for the LLM model.",
+    )
+    parser.add_argument(
+        "--llm-base-url",
+        type=str,
+        default=None,
+        help="Base URL for the LLM model.",
+    )
     my_args = parser.parse_args()
 
     github_token = (
@@ -478,7 +547,12 @@ def main():
         if my_args.github_username
         else os.getenv("GITHUB_USERNAME")
     )
-    # Remove the check for github_username
+
+    llm_config = LLMConfig(
+        model=my_args.llm_model or os.environ["LLM_MODEL"],
+        api_key=my_args.llm_api_key or os.environ["LLM_API_KEY"],
+        base_url=my_args.llm_base_url or os.environ.get("LLM_BASE_URL", None),
+    )
     
     if not os.path.exists(my_args.output_dir):
         raise ValueError(f"Output directory {my_args.output_dir} does not exist.")
@@ -489,8 +563,8 @@ def main():
             github_token,
             github_username,
             my_args.pr_type,
+            llm_config,
             my_args.fork_owner,
-            my_args.send_on_failure,
         )
     else:
         if not my_args.issue_number.isdigit():
@@ -504,9 +578,17 @@ def main():
             github_token,
             github_username,
             my_args.pr_type,
+            llm_config,
             my_args.fork_owner,
             my_args.send_on_failure,
         )
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
