@@ -132,13 +132,25 @@ def make_commit(repo_dir: str, issue: GithubIssue, issue_type: str) -> None:
             check=True,
         )
         print("Git user configured as openhands")
-
+    
     result = subprocess.run(
         f"git -C {repo_dir} add .", shell=True, capture_output=True, text=True
     )
     if result.returncode != 0:
         print(f"Error adding files: {result.stderr}")
         raise RuntimeError("Failed to add files to git")
+
+    status_result = subprocess.run(
+        f"git -C {repo_dir} status --porcelain",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+
+    if not status_result.stdout.strip():
+        print(f"No changes to commit for issue #{issue.number}. Skipping commit.")
+        raise RuntimeError("ERROR: Openhands failed to make code changes.")
+
 
     commit_message = f"Fix {issue_type} #{issue.number}: {shlex.quote(issue.title)}"
     result = subprocess.run(
