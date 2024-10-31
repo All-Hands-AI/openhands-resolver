@@ -137,6 +137,7 @@ def make_commit(repo_dir: str, issue: GithubIssue, issue_type: str) -> None:
     )
 
     if not status_result.stdout.strip():
+        print(f"No changes to commit for issue #{issue.number}. Skipping commit.")
         raise RuntimeError("ERROR: Openhands failed to make code changes.")
 
 
