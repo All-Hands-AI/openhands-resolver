@@ -242,8 +242,9 @@ async def process_issue(
     )
     config.set_llm_config(llm_config)
 
-    runtime = create_runtime(config, sid=f"{issue.number}")
+    runtime = await create_runtime(config, sid=f"{issue.number}")
     initialize_runtime(runtime)
+    await runtime.connect()
 
     instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
