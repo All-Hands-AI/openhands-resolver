@@ -109,9 +109,6 @@ If you've installed the package from source using poetry, you can still use the 
 poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
 ```
 
-
-
-
 ## Responding to PR Comments
 
 The resolver can also respond to comments on pull requests. When a comment is made on a PR:
@@ -121,6 +118,12 @@ The resolver can also respond to comments on pull requests. When a comment is ma
 3. Makes appropriate code modifications if needed
 4. Responds to the comment with explanations or updates
 5. Can update the PR with new commits if code changes are required
+
+You can run the resolver to respond to PR comments using:
+
+```bash
+python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --respond-to-comments
+```
 
 This functionality is available both through the GitHub Actions workflow and when running the resolver locally.
 
