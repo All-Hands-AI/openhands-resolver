@@ -235,6 +235,7 @@ class PRHandler(IssueHandler):
                                             totalCount
                                             nodes {
                                                 body
+                                                path
                                             }
                                         }
                                     }
@@ -281,6 +282,7 @@ class PRHandler(IssueHandler):
                 thread_ids.append(id)
                 comments = node.get("comments", {}).get("nodes", [])
                 message = ""
+                files = []
                 for i, comment in enumerate(comments):
                     if i == len(comments) - 1:  # Check if it's the last comment in the thread
                         if len(comments) > 1:
@@ -288,7 +290,16 @@ class PRHandler(IssueHandler):
                         message += "latest feedback:\n" + comment["body"] + "\n"
                     else:
                         message += comment["body"] + "\n"  # Add each comment in a new line
-                unresolved_comments.append(message)
+                    
+                    file = comment.get("path")
+                    if file:
+                        files.append(file)
+
+                unresolved_comment = {
+                    "comment": message,
+                    "files": files
+                }
+                unresolved_comments.append(unresolved_comment)
 
         return closing_issues_bodies, unresolved_comments, thread_ids
 
@@ -330,8 +341,14 @@ class PRHandler(IssueHandler):
         if issue.closing_issues is None or issue.review_comments is None:
             raise ValueError("issue.closing_issues or issue.review_comments is None")
         issues_context = json.dumps(issue.closing_issues, indent=4)
-        comment_chain = json.dumps(issue.review_comments, indent=4)
-        instruction = template.render(issues=issues_context, body=comment_chain, repo_instruction=repo_instruction)
+        comments = [review_comment["comment"] for review_comment in issue.review_comments]
+        comment_files = []
+        for review_comment in issue.review_comments:
+            comment_files.extend(review_comment["files"])
+        comment_chain = json.dumps(comments, indent=4)
+        files = json.dumps(comment_files, indent=4)
+
+        instruction = template.render(issues=issues_context, files=files, body=comment_chain, repo_instruction=repo_instruction)
         return instruction
     
 
@@ -344,15 +361,20 @@ class PRHandler(IssueHandler):
         explanation_list = []
 
         if issue.review_comments:
-            for comment in issue.review_comments:
-                formatted_comment = json.dumps(comment, indent=4)
-                prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. Determine if the feedback has been successfully resolved.
+            for review_comment in issue.review_comments:
+                formatted_comment = json.dumps(review_comment["comment"], indent=4)
+                files_context = json.dumps(review_comment["files"], indent=4)
+
+                prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. If the feedback is addressed to a specific code file, then the file locations will be provided as well. Determine if the feedback has been successfully resolved.
                 
                 Issue descriptions:
                 {issues_context}
 
                 Feedback:
                 {formatted_comment}
+
+                Files locations:
+                {files_context}
 
                 Last message from AI agent:
                 {last_message}
