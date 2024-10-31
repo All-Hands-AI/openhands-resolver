@@ -246,10 +246,12 @@ async def process_issue(
     await runtime.connect()
     initialize_runtime(runtime)
 
-    instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
+
+    instruction, images_urls = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     action = MessageAction(
         content=instruction,
+        images_urls=images_urls
     )
     state: State | None = await run_controller(
         config=config,
