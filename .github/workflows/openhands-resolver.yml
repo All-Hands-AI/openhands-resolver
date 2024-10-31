@@ -23,7 +23,6 @@ on:
   pull_request:
     types: [labeled]
 
-
 permissions:
   contents: write
   pull-requests: write
@@ -40,7 +39,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Check required environment variables
         env:
@@ -137,10 +136,22 @@ jobs:
             const fs = require('fs');
             const issueNumber = ${{ env.ISSUE_NUMBER }};
             const success = ${{ steps.check_result.outputs.RESOLUTION_SUCCESS }};
-            
+
             let prNumber = '';
             let branchName = '';
-            
+            let logContent = '';
+            const noChangesMessage = `No changes to commit for issue #${issueNumber}. Skipping commit.`;
+
+            try {
+              if (success){
+                logContent = fs.readFileSync('/tmp/pr_result.txt', 'utf8').trim();
+              } else {
+                logContent = fs.readFileSync('/tmp/branch_result.txt', 'utf8').trim();
+              }
+            } catch (error) {
+              console.error('Error reading results file:', error);
+            }
+
             try {
               if (success) {
                 prNumber = fs.readFileSync('/tmp/pr_number.txt', 'utf8').trim();
@@ -150,8 +161,15 @@ jobs:
             } catch (error) {
               console.error('Error reading file:', error);
             }
-            
-            if (success && prNumber) {
+
+            if (logContent.includes(noChangesMessage)) {
+              github.rest.issues.createComment({
+                issue_number: issueNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `The workflow to fix this issue encountered an error. Openhands failed to create any code changes.`
+              });
+            } else if (success && prNumber) {
               github.rest.issues.createComment({
                 issue_number: issueNumber,
                 owner: context.repo.owner,
@@ -173,6 +191,3 @@ jobs:
                 body: `The workflow to fix this issue encountered an error. Please check the workflow logs for more information.`
               });
             }
-
-
-
