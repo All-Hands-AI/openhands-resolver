@@ -901,7 +901,7 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     )
 
     # Mock subprocess.run to return success for all calls
-    mock_subprocess_run.return_value = MagicMock(returncode=0, stdout='', stderr='')
+    mock_subprocess_run.return_value = MagicMock(returncode=0, stdout='sample output', stderr='')
 
     # Call the function
     issue_type = "issue"
@@ -916,3 +916,35 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
     shlex_quote_message = shlex.quote(expected_commit_message)
     assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call
+
+
+@patch('subprocess.run')
+def test_make_commit_no_changes(mock_subprocess_run):
+    # Setup
+    repo_dir = '/path/to/repo'
+    issue = GithubIssue(
+        owner='test-owner',
+        repo='test-repo',
+        number=42,
+        title='Issue with no changes',
+        body='Test body'
+    )
+
+    # Mock subprocess.run to simulate no changes in the repo
+    mock_subprocess_run.side_effect = [
+        MagicMock(returncode=0), 
+        MagicMock(returncode=0),
+        MagicMock(returncode=1, stdout=''), # git status --porcelain (no changes)
+    ]
+
+    with pytest.raises(RuntimeError, match="ERROR: Openhands failed to make code changes."):
+        make_commit(repo_dir, issue, "issue")
+
+    # Check that subprocess.run was called for checking git status and add, but not commit
+    assert mock_subprocess_run.call_count == 3
+    git_status_call = mock_subprocess_run.call_args_list[2][0][0]
+    assert f'git -C {repo_dir} status --porcelain' in git_status_call
+
+    # Ensure no commit command was issued
+    for call in mock_subprocess_run.call_args_list:
+        assert 'commit' not in call[0][0], "git commit should not be called when there are no changes"
