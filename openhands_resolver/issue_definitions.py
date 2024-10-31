@@ -139,29 +139,7 @@ class IssueHandler(IssueHandlerInterface):
         return template.render(body=issue.body + thread_context, repo_instruction=repo_instruction)
 
 
-            if "pull_request" in issue:
-                continue
-            
-            # Get issue thread comments
-            thread_comments = self._get_issue_comments(issue["number"])
-            
-            issue_details = GithubIssue(
-                                owner=self.owner,
-                                repo=self.repo,
-                                number=issue["number"],
-                                title=issue["title"],
-                                body=issue["body"],
-                                thread_comments=thread_comments,
-                            )
-                
-            converted_issues.append(issue_details)
-        return converted_issues
 
-
-    def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> str:
-        """Generate instruction for the agent"""
-        template = jinja2.Template(prompt_template)
-        return template.render(body=issue.body, repo_instruction=repo_instruction)
 
     def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""

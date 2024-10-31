@@ -113,8 +113,8 @@ def test_download_issues_from_github():
     handler = IssueHandler("owner", "repo", "token")
 
 
-    mock_response = MagicMock()
-    mock_response.json.side_effect = [
+    mock_issues_response = MagicMock()
+    mock_issues_response.json.side_effect = [
         [
             {"number": 1, "title": "Issue 1", "body": "This is an issue"},
             {"number": 2, "title": "PR 1", "body": "This is a pull request", "pull_request": {}},
@@ -122,9 +122,18 @@ def test_download_issues_from_github():
         ],
         None,
     ]
-    mock_response.raise_for_status = MagicMock()
+    mock_issues_response.raise_for_status = MagicMock()
 
-    with patch('requests.get', return_value=mock_response):
+    mock_comments_response = MagicMock()
+    mock_comments_response.json.return_value = []
+    mock_comments_response.raise_for_status = MagicMock()
+
+    def get_mock_response(url, *args, **kwargs):
+        if "/comments" in url:
+            return mock_comments_response
+        return mock_issues_response
+
+    with patch('requests.get', side_effect=get_mock_response):
         issues = handler.get_converted_issues()
 
     assert len(issues) == 2
@@ -436,7 +445,7 @@ This is a Python repo for openhands-resolver, a library that attempts to resolve
 - Setup: `poetry install --with test --with dev`
 - Testing: `poetry run pytest tests/test_*.py`
 
-When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>."""
+When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>"""
     assert instruction == expected_instruction
     assert issue_handler.issue_type == "issue"
 
