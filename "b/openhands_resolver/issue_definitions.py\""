@@ -1,0 +1,12 @@
+def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> str:
+        """Generate instruction for the agent"""
+        # Format thread comments if they exist
+        thread_context = ""
+        if issue.thread_comments:
+            thread_context = "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
+        
+        template = jinja2.Template(prompt_template)
+        return template.render(body=issue.body + thread_context, repo_instruction=repo_instruction)
+
+    def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
+        """Guess if the issue is fixed based on the history and the issue description."""
