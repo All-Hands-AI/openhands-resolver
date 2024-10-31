@@ -22,6 +22,7 @@ from openhands_resolver.issue_definitions import (
     PRHandler
 )
 from openhands_resolver.resolver_output import ResolverOutput
+from openhands_resolver.feedback import submit_resolver_output
 import openhands
 from openhands.core.main import create_runtime, run_controller
 from openhands.controller.state.state import State
@@ -298,6 +299,16 @@ async def process_issue(
         success_explanation=success_explanation,
         error=state.last_error if state and state.last_error else None,
     )
+
+    # Submit feedback and get trajectory URL
+    try:
+        trajectory_url = submit_resolver_output(output, token)
+        output.trajectory_url = trajectory_url
+        logger.info(f'Successfully submitted feedback, trajectory URL: {trajectory_url}')
+    except Exception as e:
+        logger.error(f'Failed to submit feedback: {e}')
+        output.trajectory_url = None
+
     return output
 
 # This function tracks the progress AND write the output to a JSONL file

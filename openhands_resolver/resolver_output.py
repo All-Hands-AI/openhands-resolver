@@ -16,3 +16,4 @@ class ResolverOutput(BaseModel):
     comment_success: list[bool] | None
     success_explanation: str
     error: str | None
+    trajectory_url: str | None = None
