@@ -52,7 +52,7 @@ def mock_prompt_template():
 
 @pytest.fixture
 def mock_followup_prompt_template():
-    return "Issue context: {{ issues }}\n\nFollowup feedback {{ body }}\n\nPlease fix this issue."
+    return "Issue context: {{ issues }}\n\nFiles: {{ files }}\n\nFollowup feedback {{ body }}\n\nPlease fix this issue."
 
 
 def test_create_git_patch(mock_subprocess, mock_os):
@@ -218,7 +218,8 @@ def test_download_pr_from_github():
     assert [issue.number for issue in issues] == [1, 2, 3]
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
     assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
-    assert issues[0].review_comments == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
+    
+    assert [review_comment["comment"] for review_comment in issues[0].review_comments] == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
     assert issues[0].thread_ids == ["1", "3"]
 
@@ -366,12 +367,12 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         title="Test Issue",
         body="This is a test issue",
         closing_issues=["Issue 1 fix the type"],
-        review_comments=["There is still a typo 'pthon' instead of 'python'"],
+        review_comments=[{"comment": "There is still a typo 'pthon' instead of 'python'", "files": []}],
     )
 
     pr_handler = PRHandler("owner", "repo", "token")
     instruction = pr_handler.get_instruction(issue, mock_followup_prompt_template, None)
-    expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
+    expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFiles: []\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
 
     assert pr_handler.issue_type == "pr"
     assert instruction == expected_instruction

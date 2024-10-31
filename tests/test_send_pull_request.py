@@ -553,7 +553,7 @@ def test_process_single_pr_update(
             title="Issue 1",
             body="Body 1",
             closing_issues=[],
-            review_comments=["review comment for feedback"],
+            review_comments=[{"comment": "review comment for feedback", "files":[]}],
             thread_ids= ["1"],
             head_branch="branch 1"
 

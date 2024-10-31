@@ -301,8 +301,10 @@ class PRHandler(IssueHandler):
         if issue.closing_issues is None or issue.review_comments is None:
             raise ValueError("issue.closing_issues or issue.review_comments is None")
         issues_context = json.dumps(issue.closing_issues, indent=4)
-        comments = [review_comment["commment"] for review_comment in issue.review_comments]
-        comment_files = [review_comment["files"] for review_comment in issue.review_comments]
+        comments = [review_comment["comment"] for review_comment in issue.review_comments]
+        comment_files = []
+        for review_comment in issue.review_comments:
+            comment_files.extend(review_comment["files"])
         comment_chain = json.dumps(comments, indent=4)
         files = json.dumps(comment_files, indent=4)
 

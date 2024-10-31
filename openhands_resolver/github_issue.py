@@ -4,7 +4,7 @@ from typing import TypedDict
 
 class ReviewComment(TypedDict):
     comment: str
-    files: str
+    files: list[str]
 
 
 class GithubIssue(BaseModel):
