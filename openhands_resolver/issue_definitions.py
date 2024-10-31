@@ -71,6 +71,29 @@ class IssueHandler(IssueHandlerInterface):
 
         return all_issues
     
+    def _get_issue_comments(self, issue_number: int) -> list[str]:
+        """Download comments for a specific issue from Github."""
+        url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}/comments"
+        headers = {
+            "Authorization": f"token {self.token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+        params = {"per_page": 100, "page": 1}
+        all_comments = []
+
+        while True:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            comments = response.json()
+
+            if not comments:
+                break
+
+            all_comments.extend([comment["body"] for comment in comments])
+            params["page"] += 1
+
+        return all_comments
+    
     def get_converted_issues(self) -> list[GithubIssue]:
         """Download issues from Github.
 
@@ -90,31 +113,47 @@ class IssueHandler(IssueHandlerInterface):
             if "pull_request" in issue:
                 continue
             
+            # Get issue thread comments
+            thread_comments = self._get_issue_comments(issue["number"])
+            
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
                                 number=issue["number"],
                                 title=issue["title"],
                                 body=issue["body"],
+                                thread_comments=thread_comments,
                             )
                 
             converted_issues.append(issue_details)
         return converted_issues
 
-        
     def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> str:
         """Generate instruction for the agent"""
+        # Format thread comments if they exist
+        thread_context = ""
+        if issue.thread_comments:
+            thread_context = "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
+        
         template = jinja2.Template(prompt_template)
-        return template.render(body=issue.body, repo_instruction=repo_instruction)
+        return template.render(body=issue.body + thread_context, repo_instruction=repo_instruction)
+
+
+
 
     def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
        
         last_message = history.get_events_as_list()[-1].message    
+        # Include thread comments in the prompt if they exist
+        issue_context = issue.body
+        if issue.thread_comments:
+            issue_context += "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
+            
         prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
 
         Issue description:
-        {issue.body}
+        {issue_context}
 
         Last message from AI agent:
         {last_message}
@@ -132,6 +171,7 @@ class IssueHandler(IssueHandlerInterface):
         """
 
         response = litellm.completion(
+
             model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
             api_key=llm_config.api_key,
@@ -350,3 +390,15 @@ class PRHandler(IssueHandler):
         
         success = all(success_list)
         return success, success_list, json.dumps(explanation_list)
+
+
+
+
+
+
+
+
+
+
+
+
