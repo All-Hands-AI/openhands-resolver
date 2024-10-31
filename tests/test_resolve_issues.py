@@ -170,7 +170,7 @@ def test_download_pr_from_github():
                                     "id": "1",
                                     "comments": {
                                         "nodes": [
-                                            {"body": "Unresolved comment 1"},
+                                            {"body": "Unresolved comment 1", "path": "/frontend/header.tsx"},
                                             {"body": "Follow up thread"}
                                         ]
                                     }
@@ -220,6 +220,8 @@ def test_download_pr_from_github():
     assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
     
     assert [review_comment["comment"] for review_comment in issues[0].review_comments] == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
+    assert [len(review_comment["files"]) for review_comment in issues[0].review_comments] == [1, 0]
+    assert issues[0].review_comments[0]["files"] == ["/frontend/header.tsx"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
     assert issues[0].thread_ids == ["1", "3"]
 
