@@ -25,12 +25,13 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             print("Warning: Could not determine file to patch")
             continue
 
+        # Remove both "a/" and "b/" prefixes from paths
         old_path = (
-            os.path.join(repo_dir, diff.header.old_path.removeprefix("b/"))
+            os.path.join(repo_dir, diff.header.old_path.removeprefix("a/").removeprefix("b/"))
             if diff.header.old_path and diff.header.old_path != "/dev/null"
             else None
         )
-        new_path = os.path.join(repo_dir, diff.header.new_path.removeprefix("b/"))
+        new_path = os.path.join(repo_dir, diff.header.new_path.removeprefix("a/").removeprefix("b/"))
 
         # Check if the file is being deleted
         if diff.header.new_path == "/dev/null":
@@ -38,6 +39,13 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             if os.path.exists(old_path):
                 os.remove(old_path)
                 print(f"Deleted file: {old_path}")
+            continue
+
+        # Handle file rename
+        if old_path and new_path and "rename from" in patch:
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            shutil.copy2(old_path, new_path)
+            os.remove(old_path)
             continue
 
         if old_path:
@@ -565,6 +573,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 

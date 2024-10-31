@@ -173,6 +173,32 @@ index 0000000..3b18e51
     assert content == "hello world", "File content is incorrect"
 
 
+def test_apply_patch_rename_file(mock_output_dir):
+    # Create a sample file in the mock repo
+    old_file = os.path.join(mock_output_dir, "old_name.txt")
+    with open(old_file, "w") as f:
+        f.write("This file will be renamed")
+
+    # Create a patch that renames the file
+    patch_content = """diff --git a/old_name.txt b/new_name.txt
+similarity index 100%
+rename from old_name.txt
+rename to new_name.txt"""
+
+    # Apply the patch
+    apply_patch(mock_output_dir, patch_content)
+
+    # Check if the file was renamed
+    new_file = os.path.join(mock_output_dir, "new_name.txt")
+    assert not os.path.exists(old_file), "Old file still exists"
+    assert os.path.exists(new_file), "New file was not created"
+
+    # Check if the content is preserved
+    with open(new_file, "r") as f:
+        content = f.read()
+    assert content == "This file will be renamed"
+
+
 def test_apply_patch_delete_file(mock_output_dir):
     # Create a sample file in the mock repo
     sample_file = os.path.join(mock_output_dir, "to_be_deleted.txt")
@@ -966,4 +992,6 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
     expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
     shlex_quote_message = shlex.quote(expected_commit_message)
     assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call
+
+
 
