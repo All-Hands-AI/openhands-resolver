@@ -305,7 +305,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
     )
     mock_complete_runtime.return_value = {"git_patch": "test patch"}
     handler_instance.guess_success.return_value = (True, None, "Issue resolved successfully")
-    handler_instance.get_instruction.return_value = "Test instruction"  
+    handler_instance.get_instruction.return_value = ("Test instruction", [])
     handler_instance.issue_type = "issue"  
 
     with patch(
@@ -362,12 +362,13 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         repo="test_repo",
         number=123,
         title="Test Issue",
-        body="This is a test issue",
+        body="This is a test issue refer to image ![First Image](https://sampleimage.com/image1.png)",
     )
     issue_handler = IssueHandler("owner", "repo", "token")
-    instruction = issue_handler.get_instruction(issue, mock_prompt_template, None)
-    expected_instruction = "Issue: This is a test issue\n\nPlease fix this issue."
+    instruction, images_urls = issue_handler.get_instruction(issue, mock_prompt_template, None)
+    expected_instruction = "Issue: This is a test issue refer to image ![First Image](https://sampleimage.com/image1.png)\n\nPlease fix this issue."
     
+    assert images_urls == ["https://sampleimage.com/image1.png"]
     assert issue_handler.issue_type == "issue"
     assert instruction == expected_instruction
 
@@ -382,9 +383,10 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
     )
 
     pr_handler = PRHandler("owner", "repo", "token")
-    instruction = pr_handler.get_instruction(issue, mock_followup_prompt_template, None)
+    instruction, images_urls = pr_handler.get_instruction(issue, mock_followup_prompt_template, None)
     expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFiles: []\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
 
+    assert images_urls == []
     assert pr_handler.issue_type == "pr"
     assert instruction == expected_instruction
 
@@ -394,19 +396,19 @@ def test_file_instruction():
         repo="test_repo",
         number=123,
         title="Test Issue",
-        body="This is a test issue",
+        body="This is a test issue ![image](https://sampleimage.com/sample.png)",
     )
     # load prompt from openhands_resolver/prompts/resolve/basic.jinja
     with open("openhands_resolver/prompts/resolve/basic.jinja", "r") as f:
         prompt = f.read()
     # Test without thread comments
     issue_handler = IssueHandler("owner", "repo", "token")
-    instruction = issue_handler.get_instruction(issue, prompt, None)
+    instruction, images_urls = issue_handler.get_instruction(issue, prompt, None)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
 # Problem Statement
-This is a test issue
+This is a test issue ![image](https://sampleimage.com/sample.png)
 
 IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
 You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
@@ -414,6 +416,7 @@ You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>"""
 
     assert instruction == expected_instruction
+    assert images_urls == ["https://sampleimage.com/sample.png"]
 
 
 def test_file_instruction_with_repo_instruction():
@@ -432,7 +435,7 @@ def test_file_instruction_with_repo_instruction():
         repo_instruction = f.read()
     
     issue_handler = IssueHandler("owner", "repo", "token")
-    instruction = issue_handler.get_instruction(issue, prompt, repo_instruction)
+    instruction, image_urls = issue_handler.get_instruction(issue, prompt, repo_instruction)
     expected_instruction = """Please fix the following issue for the repository in /workspace.
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
@@ -451,6 +454,7 @@ This is a Python repo for openhands-resolver, a library that attempts to resolve
 When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>"""
     assert instruction == expected_instruction
     assert issue_handler.issue_type == "issue"
+    assert image_urls == []
 
 def test_guess_success():
     mock_issue = GithubIssue(
@@ -524,13 +528,14 @@ def test_instruction_with_thread_comments():
         prompt = f.read()
     
     issue_handler = IssueHandler("owner", "repo", "token")
-    instruction = issue_handler.get_instruction(issue, prompt, None)
+    instruction, images_urls = issue_handler.get_instruction(issue, prompt, None)
     
     # Verify that thread comments are included in the instruction
     assert "First comment" in instruction
     assert "Second comment" in instruction
     assert "Please add tests" in instruction
     assert "Issue Thread Comments:" in instruction
+    assert images_urls == []
 
 
 def test_guess_success_failure():
