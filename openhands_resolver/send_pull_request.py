@@ -283,6 +283,18 @@ def update_existing_pull_request(
     comment_message: str | None = None,
     additional_message: str | None = None,
 ) -> str:
+    """Update an existing pull request with the new patches.
+
+    Args:
+        github_issue: The issue to update.
+        github_token: The GitHub token to use for authentication.
+        github_username: The GitHub username to use for authentication.
+        patch_dir: The directory containing the patches to apply.
+        llm_config: The LLM configuration to use for summarizing changes.
+        comment_message: The main message to post as a comment on the PR.
+        additional_message: The additional messages to post as a comment on the PR in json list format.
+    """
+
     # Set up headers and base URL for GitHub API
     headers = {
         "Authorization": f"token {github_token}",
@@ -357,9 +369,9 @@ def process_single_issue(
     github_token: str,
     github_username: str,
     pr_type: str,
+    llm_config: LLMConfig,
     fork_owner: str | None,
     send_on_failure: bool,
-    llm_config: LLMConfig,
 ) -> None:
     if not resolver_output.success and not send_on_failure:
         print(
@@ -433,9 +445,9 @@ def process_all_successful_issues(
                 github_token,
                 github_username,
                 pr_type,
+                llm_config,
                 fork_owner,
                 False,
-                llm_config,
             )
 
 
