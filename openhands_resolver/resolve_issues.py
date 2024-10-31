@@ -242,7 +242,7 @@ async def process_issue(
     )
     config.set_llm_config(llm_config)
 
-    runtime = await create_runtime(config, sid=f"{issue.number}")
+    runtime = create_runtime(config, sid=f"{issue.number}")
     initialize_runtime(runtime)
     await runtime.connect()
 

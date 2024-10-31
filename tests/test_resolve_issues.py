@@ -273,7 +273,7 @@ async def test_complete_runtime():
 @pytest.mark.asyncio
 async def test_process_issue(mock_output_dir, mock_prompt_template):
     # Mock dependencies
-    mock_create_runtime = AsyncMock()
+    mock_create_runtime = MagicMock()
     mock_initialize_runtime = AsyncMock()
     mock_run_controller = AsyncMock()
     mock_complete_runtime = AsyncMock()
@@ -295,7 +295,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
     runtime_container_image = "test_image:latest"
 
     # Mock return values
-    mock_create_runtime.return_value = MagicMock()
+    mock_create_runtime.return_value = MagicMock(connect=AsyncMock())
     mock_run_controller.return_value = MagicMock(
         history=MagicMock(
             get_events=MagicMock(return_value=[NullObservation(content="")])
@@ -481,6 +481,7 @@ def test_guess_success():
         assert comment_success is None
         assert success
         assert explanation == "Issue resolved successfully"
+
 def test_guess_success_with_thread_comments():
     mock_issue = GithubIssue(
         owner="test_owner",
