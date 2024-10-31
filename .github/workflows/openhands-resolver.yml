@@ -74,8 +74,7 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const issueType = process.env.ISSUE_TYPE;
-            const endpoint = issueType === 'pr' ? 'pulls' : 'issues';
-            github.rest[endpoint].createComment({
+            github.rest.issues.createComment({
               issue_number: ${{ env.ISSUE_NUMBER }},
               owner: context.repo.owner,
               repo: context.repo.repo,
