@@ -37,7 +37,7 @@ from openhands.core.config import (
     SandboxConfig,
 )
 from openhands.core.config import LLMConfig
-from openhands.runtime.runtime import Runtime
+from openhands.runtime.base import Runtime
 from openhands_resolver.utils import (
     codeact_user_response,
     reset_logger_for_multiprocessing,
@@ -243,6 +243,7 @@ async def process_issue(
     config.set_llm_config(llm_config)
 
     runtime = create_runtime(config, sid=f"{issue.number}")
+    await runtime.connect()
     initialize_runtime(runtime)
 
     instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
