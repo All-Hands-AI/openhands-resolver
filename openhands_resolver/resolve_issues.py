@@ -37,7 +37,7 @@ from openhands.core.config import (
     SandboxConfig,
 )
 from openhands.core.config import LLMConfig
-from openhands.runtime.runtime import Runtime
+from openhands.runtime.base import Runtime
 from openhands_resolver.utils import (
     codeact_user_response,
     reset_logger_for_multiprocessing,
