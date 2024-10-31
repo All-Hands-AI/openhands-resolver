@@ -42,12 +42,11 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             continue
 
         # Handle file rename
-        if diff.header.old_path and diff.header.new_path and "rename from" in patch and "rename to" in patch:
-            if os.path.exists(old_path):
-                os.makedirs(os.path.dirname(new_path), exist_ok=True)
-                shutil.copy2(old_path, new_path)
-                os.remove(old_path)
-                continue
+        if old_path and new_path and "rename from" in patch:
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            shutil.copy2(old_path, new_path)
+            os.remove(old_path)
+            continue
 
         if old_path:
             # Open the file in binary mode to detect line endings
