@@ -243,7 +243,7 @@ async def process_issue(
     config.set_llm_config(llm_config)
 
     runtime = await create_runtime(config, sid=f"{issue.number}")
-    initialize_runtime(runtime)
+    await initialize_runtime(runtime)
     await runtime.connect()
 
     instruction = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
