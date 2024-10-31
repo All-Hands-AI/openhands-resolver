@@ -154,6 +154,7 @@ def send_pull_request(
     github_token: str,
     github_username: str | None,
     patch_dir: str,
+    llm_config: LLMConfig,
     pr_type: str,
     fork_owner: str | None = None,
     additional_message: str | None = None,
@@ -408,6 +409,7 @@ def process_single_issue(
             github_username=github_username,
             patch_dir=patched_repo_dir,
             pr_type=pr_type,
+            llm_config=llm_config,
             fork_owner=fork_owner,
             additional_message=resolver_output.success_explanation,
         )
@@ -544,9 +546,9 @@ def main():
             github_token,
             github_username,
             my_args.pr_type,
+            llm_config,
             my_args.fork_owner,
             my_args.send_on_failure,
-            llm_config,
         )
 
 if __name__ == "__main__":
