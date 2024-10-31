@@ -411,7 +411,7 @@ This is a test issue
 IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
 You SHOULD INCLUDE PROPER INDENTATION in your edit commands.
 
-When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>"""
+When you think you have fixed the issue through code changes, please finish the interaction."""
 
     assert instruction == expected_instruction
 
@@ -448,7 +448,7 @@ This is a Python repo for openhands-resolver, a library that attempts to resolve
 - Setup: `poetry install --with test --with dev`
 - Testing: `poetry run pytest tests/test_*.py`
 
-When you think you have fixed the issue through code changes, please run the following command: <execute_bash> exit </execute_bash>"""
+When you think you have fixed the issue through code changes, please finish the interaction."""
     assert instruction == expected_instruction
     assert issue_handler.issue_type == "issue"
 
