@@ -13,9 +13,7 @@ Getting started is simple - just follow the instructions below.
 This repository includes a GitHub Actions workflow that can automatically attempt to fix individual issues labeled with 'fix-me'.
 Follow these steps to use this workflow in your own repository:
 
-1. Prepare a GitHub personal access token:
-    - Option 1: [Contact us](mailto:contact@all-hands.dev) to set up a token for the [openhands-agent](https://github.com/openhands-agent) account (recommended for clear identification of AI-generated commits)
-    - Option 2: Use your own GitHub account by [creating a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows"
+1. [Create a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows"
 
 2. Create an API key for the [Claude API](https://www.anthropic.com/api) (recommended) or another supported LLM service
 
