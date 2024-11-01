@@ -1,4 +1,4 @@
-name: Resolve Issues with OpenHands
+name: Resolve Issue with OpenHands
 
 on:
   issues:

@@ -1,104 +1,115 @@
-# OpenHands Github Backlog Resolver 🙌
+# OpenHands Github Issue Resolver 🙌
 
-Do you have a bunch of open github issues that need to be resolved but no
-time to do it? What about asking an AI agent to do it for you instead?
+Need help resolving a GitHub issue but don't have the time to do it yourself? Let an AI agent help you out!
 
-This tool allows you to do just that, point towards a github repository,
-and you can use open-source AI agents based on [OpenHands](https://github.com/all-hands-ai/openhands)
-to attempt to resolve issues for you.
+This tool allows you to use open-source AI agents based on [OpenHands](https://github.com/all-hands-ai/openhands)
+to attempt to resolve GitHub issues automatically. While it can handle multiple issues, it's primarily designed
+to help you resolve one issue at a time with high quality.
 
-It's quite simple to get setup, just follow the instructions below.
+Getting started is simple - just follow the instructions below.
 
 ## Using the GitHub Actions Workflow
 
-This repository includes a GitHub Actions workflow that can automatically attempt to fix issues labeled with 'fix-me'.
-Follow the steps to use this workflow in your own repository, and feel free to contact us through github issues or [contact@all-hands.dev](mailto:contact@all-hands.dev) if you have questions:
+This repository includes a GitHub Actions workflow that can automatically attempt to fix individual issues labeled with 'fix-me'.
+Follow these steps to use this workflow in your own repository:
 
-1. Prepare a github personal access token. You can:
-    1. [Contact us](mailto:contact@all-hands.dev) and we will set up a token for the [openhands-agent](https://github.com/openhands-agent) account (if you want to make it clear which commits came from the agent.
-    2. Choose your own github user that will make the commits to the repo, [and create a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows" on the desired repos.
+1. Prepare a GitHub personal access token:
+    - Option 1: [Contact us](mailto:contact@all-hands.dev) to set up a token for the [openhands-agent](https://github.com/openhands-agent) account (recommended for clear identification of AI-generated commits)
+    - Option 2: Use your own GitHub account by [creating a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows"
 
-2. Create an API key for the [Claude API](https://www.anthropic.com/api) (you can also use GPT, but Claude has better performance).
+2. Create an API key for the [Claude API](https://www.anthropic.com/api) (recommended) or another supported LLM service
 
-3. Copy the `examples/openhands-resolver.yml` file to your repository's `.github/workflows/` directory.
+3. Copy `examples/openhands-resolver.yml` to your repository's `.github/workflows/` directory
 
-4. Enable read/write workflows for the repository by going to `Settings -> Actions -> General -> Workflow permissions` and selecting "Read and write permissions" and click "Allow Github Actions to create and approve pull requests".
+4. Configure repository permissions:
+    - Go to `Settings -> Actions -> General -> Workflow permissions`
+    - Select "Read and write permissions"
+    - Enable "Allow Github Actions to create and approve pull requests"
 
-5. Set up the following [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) in your repository, or across your entire org if you want to only set ths once and use the resolver in multiple repositories:
-   - `PAT_USERNAME`: The github username that you used to create the personal access token.
-   - `PAT_TOKEN`: The personal access token for github.
-   - `LLM_MODEL`: The LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
-   - `LLM_API_KEY`: Your API key for the LLM service
-   - `LLM_BASE_URL`: The base URL for the LLM API (optional, only if using a proxy)
+5. Set up [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions):
+   - Required:
+     - `PAT_USERNAME`: GitHub username for the personal access token
+     - `PAT_TOKEN`: The personal access token
+     - `LLM_MODEL`: LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
+     - `LLM_API_KEY`: Your LLM API key
+   - Optional:
+     - `LLM_BASE_URL`: Base URL for LLM API (only if using a proxy)
 
+   Note: You can set these secrets at the organization level to use across multiple repositories.
 
-6. To trigger the workflow, add the 'fix-me' label to any issue you want the AI to attempt to resolve.
+6. Usage:
+   - Add the 'fix-me' label to any issue you want the AI to resolve
+   - The workflow will:
+     1. Attempt to resolve the issue using OpenHands
+     2. Create a draft PR if successful, or push a branch if unsuccessful
+     3. Comment on the issue with the results
+     4. Remove the 'fix-me' label once processed
 
-The workflow will:
+Need help? Feel free to [open an issue](https://github.com/all-hands-ai/openhands-resolver/issues) or email us at [contact@all-hands.dev](mailto:contact@all-hands.dev).
 
-- Attempt to resolve the issue using the OpenHands resolver
-- Create a draft PR if successful, or push a branch if unsuccessful
-- Comment on the issue with the results
+## Manual Installation
 
-## Installation
+If you prefer to run the resolver programmatically instead of using GitHub Actions, follow these steps:
 
-If you want to instead run the resolver on your own programmatically.
-
-
-
-
-
+1. Install the package:
 ```bash
 pip install openhands-resolver
 ```
 
-If you don't have one already, create a GitHub access token. You can
-[create a fine-grained token](https://github.com/settings/personal-access-tokens/new)
-that has "Content", "Pull requests", "Issues", and "Workflows" scopes for the repository you
-want to resolve issues in. If you don't have push access to that repo,
-you can create a fork of the repo and use the fork.
+2. Create a GitHub access token:
+   - Visit [GitHub's token settings](https://github.com/settings/personal-access-tokens/new)
+   - Create a fine-grained token with these scopes:
+     - "Content"
+     - "Pull requests"
+     - "Issues"
+     - "Workflows"
+   - If you don't have push access to the target repo, you can fork it first
 
-Once you have your token set the `GITHUB_TOKEN` environment variable, e.g.
+3. Set up environment variables:
 ```bash
-export GITHUB_TOKEN="your-secret-token"
+# GitHub credentials
+export GITHUB_TOKEN="your-github-token"
+export GITHUB_USERNAME="your-github-username"  # Optional, defaults to token owner
+
+# LLM configuration
+export LLM_MODEL="anthropic/claude-3-5-sonnet-20240620"  # Recommended
+export LLM_API_KEY="your-llm-api-key"
+export LLM_BASE_URL="your-api-url"  # Optional, for API proxies
 ```
 
-You'll also need to have choose an `LLM_MODEL` and prepare an `LLM_API_KEY`,
-for which you can follow the OpenHands setup instructions. OpenHands works
-best with large, popular models like OpenAI's gpt-4o and Anthropic's Claude.
-
-```bash
-export LLM_MODEL="anthropic/claude-3-5-sonnet-20240620"
-export LLM_API_KEY="sk_test_12345"
-```
+Note: OpenHands works best with powerful models like Anthropic's Claude or OpenAI's GPT-4. While other models are supported, they may not perform as well for complex issue resolution.
 
 ## Resolving Issues
 
-The resolver can automatically attempt to fix issues in your repository using the following command:
+The resolver can automatically attempt to fix a single issue in your repository using the following command:
 
 ```bash
-python -m openhands_resolver.resolve_issues --repo [OWNER]/[REPO]
+python -m openhands_resolver.resolve_issue --repo [OWNER]/[REPO] --issue-number [NUMBER]
 ```
 
-For instance, if you want to resolve issues in this repo, you would run:
+For instance, if you want to resolve issue #100 in this repo, you would run:
 
 ```bash
-python -m openhands_resolver.resolve_issues --repo all-hands-ai/openhands-resolver
+python -m openhands_resolver.resolve_issue --repo all-hands-ai/openhands-resolver --issue-number 100
 ```
 
 The output will be written to the `output/` directory.
 
-Alternatively, if you only want to resolve a subset of the issues, you can specify a
-list of issues to resolve. For instance, if you want to resolve issues 100 and 101, you can run:
+If you've installed the package from source using poetry, you can use:
 
 ```bash
-python -m openhands_resolver.resolve_issues --repo all-hands-ai/openhands-resolver --issue-numbers 100,101
+poetry run python openhands_resolver/resolve_issue.py --repo all-hands-ai/openhands-resolver --issue-number 100
 ```
 
-If you've installed the package from source using poetry, you can still use the previous method:
+For resolving multiple issues at once (e.g., in a batch process), you can use the `resolve_all_issues` command:
 
 ```bash
-poetry run python openhands_resolver/resolve_issues.py --repo all-hands-ai/openhands-resolver
+python -m openhands_resolver.resolve_all_issues --repo [OWNER]/[REPO] --issue-numbers [NUMBERS]
+```
+
+For example:
+```bash
+python -m openhands_resolver.resolve_all_issues --repo all-hands-ai/openhands-resolver --issue-numbers 100,101,102
 ```
 
 ## Responding to PR Comments
