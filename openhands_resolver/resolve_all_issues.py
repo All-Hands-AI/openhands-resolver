@@ -6,13 +6,10 @@ import multiprocessing as mp
 import os
 import pathlib
 import subprocess
-from typing import Awaitable
+from typing import Awaitable, TextIO
 from tqdm import tqdm
 
 from openhands_resolver.github_issue import GithubIssue
-from openhands_resolver.issue_definitions import (
-    IssueHandlerInterface,
-)
 from openhands_resolver.resolver_output import ResolverOutput
 import openhands
 from openhands.core.logger import openhands_logger as logger

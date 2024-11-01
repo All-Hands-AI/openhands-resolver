@@ -5,8 +5,7 @@ import pytest
 
 from unittest.mock import AsyncMock, patch, MagicMock
 from openhands_resolver.issue_definitions import IssueHandler, PRHandler
-from openhands_resolver.resolve_issues import (
-    create_git_patch,
+from openhands_resolver.resolve_issue import (
     initialize_runtime,
     complete_runtime,
     process_issue,
@@ -55,27 +54,6 @@ def mock_followup_prompt_template():
     return "Issue context: {{ issues }}\n\nFiles: {{ files }}\n\nFollowup feedback {{ body }}\n\nPlease fix this issue."
 
 
-def test_create_git_patch(mock_subprocess, mock_os):
-    mock_subprocess.return_value = b"abcdef1234567890"
-    mock_os[0].return_value = 0
-    mock_os[1].return_value = "/path/to/workspace/123.patch"
-
-    with patch("builtins.open", MagicMock()) as mock_open:
-        mock_open.return_value.__enter__.return_value.read.return_value = (
-            "patch content"
-        )
-
-        git_id, patch_content = create_git_patch(
-            "/path/to/workspace", "main", "fix", 123
-        )
-
-        assert git_id == "abcdef1234567890"
-        assert patch_content == "patch content"
-        mock_subprocess.assert_called_once_with(["git", "rev-parse", "main"])
-        mock_os[0].assert_called_once_with(
-            "cd /path/to/workspace && git diff main fix > 123.patch"
-        )
-        mock_open.assert_called_once_with("/path/to/workspace/123.patch", "r")
 
 
 def create_cmd_output(
@@ -309,15 +287,15 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
     handler_instance.issue_type = "issue"  
 
     with patch(
-        "openhands_resolver.resolve_issues.create_runtime", mock_create_runtime
+        "openhands_resolver.resolve_issue.create_runtime", mock_create_runtime
     ), patch(
-        "openhands_resolver.resolve_issues.initialize_runtime", mock_initialize_runtime
+        "openhands_resolver.resolve_issue.initialize_runtime", mock_initialize_runtime
     ), patch(
-        "openhands_resolver.resolve_issues.run_controller", mock_run_controller
+        "openhands_resolver.resolve_issue.run_controller", mock_run_controller
     ), patch(
-        "openhands_resolver.resolve_issues.complete_runtime", mock_complete_runtime
+        "openhands_resolver.resolve_issue.complete_runtime", mock_complete_runtime
     ), patch(
-        "openhands_resolver.resolve_issues.logger"
+        "openhands_resolver.resolve_issue.logger"
     ):
 
             # Call the function
