@@ -2,23 +2,19 @@
 
 import asyncio
 import dataclasses
-import shutil
-from typing import Any, Awaitable, TextIO
-import argparse
-import multiprocessing as mp
 import os
 import pathlib
+import shutil
 import subprocess
 import json
+from typing import Any
 
 from termcolor import colored
-from tqdm import tqdm
-
 
 from openhands_resolver.github_issue import GithubIssue
-from openhands_resolver.issue_definitions import ( 
-    IssueHandler, 
-    IssueHandlerInterface, 
+from openhands_resolver.issue_definitions import (
+    IssueHandler,
+    IssueHandlerInterface,
     PRHandler
 )
 from openhands_resolver.resolver_output import ResolverOutput
@@ -46,47 +42,6 @@ from openhands_resolver.utils import (
 
 # Don't make this confgurable for now, unless we have other competitive agents
 AGENT_CLASS = "CodeActAgent"
-
-
-def cleanup():
-    print("Cleaning up child processes...")
-    for process in mp.active_children():
-        print(f"Terminating child process: {process.name}")
-        process.terminate()
-        process.join()
-
-
-def create_git_patch(
-    workspace_mount_path: str, main_branch: str, fix_branch: str, issue_number: int
-) -> tuple[str, str | None]:
-    """Create a git patch file between main_branch and fix_branch.
-
-    Args:
-        workspace_mount_path: Path to the workspace.
-        main_branch: Main branch.
-        fix_branch: Fix branch.
-        issue_number: Issue number.
-
-    Returns:
-        A tuple of:
-        - The original branch's git id
-        - A patch to apply the fix
-        or None if there is not a patch between the main and fix branch.
-    """
-    # Git the commit ID of the main branch
-    git_id = (
-        subprocess.check_output(["git", "rev-parse", main_branch])
-        .decode("utf-8")
-        .strip()
-    )
-    # Within the workspace, use git to create a patch between main_branch and fix_branch
-    os.system(
-        f"cd {workspace_mount_path} && git diff {main_branch} {fix_branch} > {issue_number}.patch"
-    )
-    git_patch_file = os.path.join(workspace_mount_path, f"{issue_number}.patch")
-    with open(git_patch_file, "r") as f:
-        patch_content = f.read()
-    return git_id, patch_content
 
 
 def initialize_runtime(
@@ -193,7 +148,7 @@ async def complete_runtime(
     logger.info('END Runtime Completion Fn')
     logger.info('-' * 30)
     return {'git_patch': git_patch}
-        
+
 
 async def process_issue(
     issue: GithubIssue,
@@ -246,7 +201,6 @@ async def process_issue(
     await runtime.connect()
     initialize_runtime(runtime)
 
-
     instruction, images_urls = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     action = MessageAction(
@@ -284,8 +238,6 @@ async def process_issue(
                 success_log += f"\n{bullet_point} {status}: {explanation}"
         logger.info(success_log)
 
-
-
     # Save the output
     output = ResolverOutput(
         issue=issue,
@@ -302,19 +254,6 @@ async def process_issue(
     )
     return output
 
-# This function tracks the progress AND write the output to a JSONL file
-async def update_progress(output: Awaitable[ResolverOutput], output_fp: TextIO, pbar: tqdm) -> None:
-    resolved_output = await output
-    pbar.update(1)
-    pbar.set_description(f'issue {resolved_output.issue.number}')
-    pbar.set_postfix_str(
-        f'Test Result: {resolved_output.metrics.get("test_result", "N/A") if resolved_output.metrics else "N/A"}'
-    )
-    logger.info(
-        f'Finished issue {resolved_output.issue.number}: {resolved_output.metrics.get("test_result", "N/A") if resolved_output.metrics else "N/A"}'
-    )
-    output_fp.write(resolved_output.model_dump_json() + "\n")
-    output_fp.flush()
 
 def issue_handler_factory(issue_type: str, owner: str, repo: str, token: str) -> IssueHandlerInterface:
     if issue_type == "issue":
@@ -325,23 +264,21 @@ def issue_handler_factory(issue_type: str, owner: str, repo: str, token: str) ->
         raise ValueError(f"Invalid issue type: {issue_type}")
 
 
-async def resolve_issues(
+async def resolve_issue(
     owner: str,
     repo: str,
     token: str,
     username: str,
     max_iterations: int,
-    limit_issues: int | None,
-    num_workers: int,
     output_dir: str,
     llm_config: LLMConfig,
     runtime_container_image: str,
-    prompt_template: str,  # Add this parameter
+    prompt_template: str,
     issue_type: str,
     repo_instruction: str | None,
-    issue_numbers: list[int] | None,
+    issue_number: int,
 ) -> None:
-    """Resolve github issues.
+    """Resolve a single github issue.
 
     Args:
         owner: Github owner of the repo.
@@ -349,12 +286,11 @@ async def resolve_issues(
         token: Github token to access the repository.
         username: Github username to access the repository.
         max_iterations: Maximum number of iterations to run
-        limit_issues: Limit the number of issues to resolve.
         output_dir: Output directory to write the results.
         runtime_container_image: Container image to use.
         prompt_template: Prompt template to use.
         repo_instruction: Repository instruction to use.
-        issue_numbers: List of issue numbers to resolve.
+        issue_number: Issue number to resolve.
     """
 
     issue_handler = issue_handler_factory(issue_type, owner, repo, token)
@@ -362,12 +298,10 @@ async def resolve_issues(
     # Load dataset
     issues: list[GithubIssue] = issue_handler.get_converted_issues()
     
-    if issue_numbers is not None:
-        issues = [issue for issue in issues if issue.number in issue_numbers]
-        logger.info(f"Limiting resolving to issues {issue_numbers}.")
-    if limit_issues is not None:
-        issues = issues[:limit_issues]
-        logger.info(f"Limiting resolving to first {limit_issues} issues.")
+    # Find the specific issue
+    issue = next((i for i in issues if i.number == issue_number), None)
+    if not issue:
+        raise ValueError(f"Issue {issue_number} not found")
 
     # TEST METADATA
     model_name = llm_config.model.split("/")[-1]
@@ -412,99 +346,64 @@ async def resolve_issues(
     # OUTPUT FILE
     output_file = os.path.join(output_dir, "output.jsonl")
     logger.info(f"Writing output to {output_file}")
-    finished_numbers = set()
+
+    # Check if this issue was already processed
     if os.path.exists(output_file):
         with open(output_file, "r") as f:
             for line in f:
                 data = ResolverOutput.model_validate_json(line)
-                finished_numbers.add(data.issue.number)
-        logger.warning(
-            f"Output file {output_file} already exists. Loaded {len(finished_numbers)} finished issues."
-        )
+                if data.issue.number == issue_number:
+                    logger.warning(f"Issue {issue_number} was already processed. Skipping.")
+                    return
+
     output_fp = open(output_file, "a")
 
     logger.info(
-        f"Resolving issues with Agent {AGENT_CLASS}, model {model_name}, max iterations {max_iterations}."
+        f"Resolving issue {issue_number} with Agent {AGENT_CLASS}, model {model_name}, max iterations {max_iterations}."
     )
-
-    # =============================================
-    # filter out finished issues
-    new_issues = []
-    for issue in issues:
-        if issue.number in finished_numbers:
-            logger.info(f"Skipping issue {issue.number} as it is already finished.")
-            continue
-        new_issues.append(issue)
-    logger.info(
-        f"Finished issues: {len(finished_numbers)}, Remaining issues: {len(issues)}"
-    )
-    # =============================================
-
-    pbar = tqdm(total=len(issues))
-
-    # This sets the multi-processing
-    logger.info(f"Using {num_workers} workers.")
 
     try:
-        # Replace the ProcessPoolExecutor with asyncio.gather
-        tasks = []
-        for issue in issues:
+        # checkout to pr branch if needed
+        if issue_type == "pr":
+            logger.info(f"Checking out to PR branch {issue.head_branch} for issue {issue.number}")
             
-            # checkout to pr branch
-            if issue_type == "pr":
-                logger.info(f"Checking out to PR branch {issue.head_branch} for issue {issue.number}")
-                
-                subprocess.check_output(
-                    ["git", "checkout", f"{issue.head_branch}"],
-                    cwd=repo_dir,
-                )
-
-                base_commit = (
-                    subprocess.check_output(
-                        ["git", "rev-parse", "HEAD"], cwd=repo_dir
-                    )
-                    .decode("utf-8")
-                    .strip()
-                )
-
-            task = update_progress(
-                process_issue(
-                    issue,
-                    base_commit,
-                    max_iterations,
-                    llm_config,
-                    output_dir,
-                    runtime_container_image,
-                    prompt_template,
-                    issue_handler,
-                    repo_instruction,
-                    bool(num_workers > 1),
-                ),
-                output_fp,
-                pbar,
+            subprocess.check_output(
+                ["git", "checkout", f"{issue.head_branch}"],
+                cwd=repo_dir,
             )
-            tasks.append(task)
 
-        # Use asyncio.gather with a semaphore to limit concurrency
-        sem = asyncio.Semaphore(num_workers)
+            base_commit = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"], cwd=repo_dir
+                )
+                .decode("utf-8")
+                .strip()
+            )
 
-        async def run_with_semaphore(task):
-            async with sem:
-                return await task
+        output = await process_issue(
+            issue,
+            base_commit,
+            max_iterations,
+            llm_config,
+            output_dir,
+            runtime_container_image,
+            prompt_template,
+            issue_handler,
+            repo_instruction,
+            True,
+        )
+        output_fp.write(output.model_dump_json() + "\n")
+        output_fp.flush()
 
-        await asyncio.gather(*[run_with_semaphore(task) for task in tasks])
-
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt received. Cleaning up...")
-        cleanup()
-
-    output_fp.close()
-    logger.info("Finished.")
+    finally:
+        output_fp.close()
+        logger.info("Finished.")
 
 
 def main():
+    import argparse
 
-    parser = argparse.ArgumentParser(description="Resolve issues from Github.")
+    parser = argparse.ArgumentParser(description="Resolve a single issue from Github.")
     parser.add_argument(
         "--repo",
         type=str,
@@ -530,34 +429,16 @@ def main():
         help="Container image to use.",
     )
     parser.add_argument(
-        "--agent-class",
-        type=str,
-        default="CodeActAgent",
-        help="The agent class to use.",
-    )
-    parser.add_argument(
         "--max-iterations",
         type=int,
         default=50,
         help="Maximum number of iterations to run.",
     )
     parser.add_argument(
-        "--limit-issues",
+        "--issue-number",
         type=int,
-        default=None,
-        help="Limit the number of issues to resolve.",
-    )
-    parser.add_argument(
-        "--issue-numbers",
-        type=str,
-        default=None,
-        help="Comma separated list of issue numbers to resolve.",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=1,
-        help="Number of workers to use.",
+        required=True,
+        help="Issue number to resolve.",
     )
     parser.add_argument(
         "--output-dir",
@@ -595,7 +476,6 @@ def main():
         default=None,
         help="Path to the repository instruction file in text format.",
     )
-
     parser.add_argument(
         "--issue-type",
         type=str,
@@ -634,10 +514,6 @@ def main():
         with open(my_args.repo_instruction_file, 'r') as f:
             repo_instruction = f.read()
 
-    issue_numbers = None
-    if my_args.issue_numbers:
-        issue_numbers = [int(number) for number in my_args.issue_numbers.split(",")]
-
     issue_type = my_args.issue_type
 
     # Read the prompt template
@@ -651,21 +527,19 @@ def main():
         prompt_template = f.read()
 
     asyncio.run(
-        resolve_issues(
+        resolve_issue(
             owner=owner,
             repo=repo,
             token=token,
             username=username,
             runtime_container_image=runtime_container_image,
             max_iterations=my_args.max_iterations,
-            limit_issues=my_args.limit_issues,
-            num_workers=my_args.num_workers,
             output_dir=my_args.output_dir,
             llm_config=llm_config,
-            prompt_template=prompt_template,  # Pass the prompt template
+            prompt_template=prompt_template,
             issue_type=issue_type,
             repo_instruction=repo_instruction,
-            issue_numbers=issue_numbers,
+            issue_number=my_args.issue_number,
         )
     )
 
