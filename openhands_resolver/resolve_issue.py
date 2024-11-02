@@ -23,6 +23,7 @@ from openhands.core.main import create_runtime, run_controller
 from openhands.controller.state.state import State
 from openhands.core.logger import openhands_logger as logger
 from openhands.events.action import CmdRunAction, MessageAction
+from openhands.events.stream import EventStreamSubscriber
 from openhands.events.observation import (
     CmdOutputObservation,
     ErrorObservation,
@@ -199,6 +200,10 @@ async def process_issue(
 
     runtime = create_runtime(config, sid=f"{issue.number}")
     await runtime.connect()
+    async def on_event(evt):
+        logger.info(evt)
+    runtime.event_stream.subscribe(EventStreamSubscriber.MAIN, on_event, append=True)
+
     initialize_runtime(runtime)
 
     instruction, images_urls = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
