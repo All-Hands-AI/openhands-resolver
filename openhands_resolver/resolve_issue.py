@@ -28,6 +28,7 @@ from openhands.events.observation import (
     ErrorObservation,
     Observation,
 )
+from openhands.events.stream import EventStreamSubscriber
 from openhands.core.config import (
     AppConfig,
     SandboxConfig,
@@ -44,7 +45,7 @@ from openhands_resolver.utils import (
 AGENT_CLASS = "CodeActAgent"
 
 
-def initialize_runtime(
+async def initialize_runtime(
     runtime: Runtime,
 ):
     """Initialize the runtime for the agent.
@@ -59,7 +60,7 @@ def initialize_runtime(
 
     action = CmdRunAction(command='cd /workspace')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = runtime.run_action(action)
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(
@@ -68,7 +69,7 @@ def initialize_runtime(
 
     action = CmdRunAction(command='git config --global core.pager ""')
     logger.info(action, extra={'msg_type': 'ACTION'})
-    obs = runtime.run_action(action)
+    obs = await runtime.run_action(action)
     logger.info(obs, extra={'msg_type': 'OBSERVATION'})
     if not isinstance(obs, CmdOutputObservation) or obs.exit_code != 0:
         raise RuntimeError(f"Failed to set git config.\n{obs}")
@@ -199,7 +200,13 @@ async def process_issue(
 
     runtime = create_runtime(config, sid=f"{issue.number}")
     await runtime.connect()
-    initialize_runtime(runtime)
+    
+    # Subscribe to event stream to print logs
+    def on_event(evt):
+        logger.info(evt)
+    runtime.event_stream.subscribe(on_event, EventStreamSubscriber.MAIN)
+    
+    await initialize_runtime(runtime)
 
     instruction, images_urls = issue_handler.get_instruction(issue, prompt_template, repo_instruction)
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
