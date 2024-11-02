@@ -6,6 +6,10 @@ on:
       issue_number:
         required: true
         type: number
+      trigger_name:
+        required: false
+        type: string
+        default: '@openhands-agent'
     secrets:
       LLM_MODEL:
         required: true
@@ -22,6 +26,10 @@ on:
     types: [labeled]
   pull_request:
     types: [labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -30,7 +38,11 @@ permissions:
 
 jobs:
   auto-fix:
-    if: github.event_name == 'workflow_call' || github.event.label.name == 'fix-me'
+    if: |
+      github.event_name == 'workflow_call' ||
+      github.event.label.name == 'fix-me' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, inputs.trigger_name || '@openhands-agent')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, inputs.trigger_name || '@openhands-agent'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -58,14 +70,39 @@ jobs:
           done
 
       - name: Set issue number and type
-        run: |
-          if [ -n "${{ github.event.pull_request.number }}" ]; then
-            echo "ISSUE_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-            echo "ISSUE_TYPE=pr" >> $GITHUB_ENV
-          else
-            echo "ISSUE_NUMBER=${{ github.event.issue.number || inputs.issue_number }}" >> $GITHUB_ENV
-            echo "ISSUE_TYPE=issue" >> $GITHUB_ENV
-          fi
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let issueNumber;
+            let issueType;
+            let linkedIssueNumber;
+
+            if (context.eventName === 'workflow_call') {
+              issueNumber = context.payload.inputs.issue_number;
+              issueType = 'issue';
+            } else if (context.eventName === 'issue_comment') {
+              issueNumber = context.payload.issue.number;
+              issueType = context.payload.issue.pull_request ? 'pr' : 'issue';
+            } else if (context.eventName === 'pull_request_review_comment' || context.payload.pull_request) {
+              issueNumber = context.payload.pull_request.number;
+              issueType = 'pr';
+              
+              // Check for linked issues in PR description
+              const prBody = context.payload.pull_request.body || '';
+              const matches = prBody.match(/(close[sd]?|fix(es|ed)?|resolve[sd]?)\s+#(\d+)/i);
+              if (matches) {
+                linkedIssueNumber = matches[3];
+              }
+            } else {
+              issueNumber = context.payload.issue.number;
+              issueType = 'issue';
+            }
+
+            core.exportVariable('ISSUE_NUMBER', issueNumber);
+            core.exportVariable('ISSUE_TYPE', issueType);
+            if (linkedIssueNumber) {
+              core.exportVariable('LINKED_ISSUE_NUMBER', linkedIssueNumber);
+            }
 
       - name: Comment on issue with start message
         uses: actions/github-script@v7
@@ -93,10 +130,18 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           PYTHONPATH: ""
         run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event_name }}" = "issue_comment" ] || [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            EXTRA_ARGS="--comment-text '${{ github.event.comment.body }}'"
+          fi
+          if [ -n "${{ env.LINKED_ISSUE_NUMBER }}" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --linked-issue-number ${{ env.LINKED_ISSUE_NUMBER }}"
+          fi
           cd /tmp && DEBUG=true python -m openhands_resolver.resolve_issue \
             --repo ${{ github.repository }} \
             --issue-number ${{ env.ISSUE_NUMBER }} \
-            --issue-type ${{ env.ISSUE_TYPE }}
+            --issue-type ${{ env.ISSUE_TYPE }} \
+            $EXTRA_ARGS
 
       - name: Check resolution result
         id: check_result

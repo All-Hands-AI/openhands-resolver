@@ -3,13 +3,21 @@ name: Resolve Issue with OpenHands
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
   call-openhands-resolver:
     uses: All-Hands-AI/openhands-resolver/.github/workflows/openhands-resolver.yml@main
-    if: github.event.label.name == 'fix-me'
+    if: |
+      github.event.label.name == 'fix-me' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@openhands-agent')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@openhands-agent'))
     with:
       issue_number: ${{ github.event.issue.number }}
+      trigger_name: '@openhands-agent'  # Optional, defaults to '@openhands-agent'
     secrets:
       PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
