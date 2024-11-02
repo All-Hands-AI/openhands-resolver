@@ -164,7 +164,6 @@ async def resolve_issues(
     logger.info(f"Using {num_workers} workers.")
 
     try:
-        # Replace the ProcessPoolExecutor with asyncio.gather
         tasks = []
         for issue in issues:
             

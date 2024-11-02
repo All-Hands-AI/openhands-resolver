@@ -160,7 +160,7 @@ async def process_issue(
     prompt_template: str,
     issue_handler: IssueHandlerInterface,
     repo_instruction: str | None = None,
-    reset_logger: bool = True,
+    reset_logger: bool = False,
 ) -> ResolverOutput:
 
     # Setup the logger properly, so you can run multi-processing to parallelize processing
@@ -277,6 +277,7 @@ async def resolve_issue(
     issue_type: str,
     repo_instruction: str | None,
     issue_number: int,
+    reset_logger: bool = False,
 ) -> None:
     """Resolve a single github issue.
 
@@ -390,7 +391,7 @@ async def resolve_issue(
             prompt_template,
             issue_handler,
             repo_instruction,
-            True,
+            reset_logger,
         )
         output_fp.write(output.model_dump_json() + "\n")
         output_fp.flush()
