@@ -123,7 +123,7 @@ def reset_logger_for_multiprocessing(
     # add back the console handler to print ONE line
     logger.addHandler(get_console_handler())
     logger.info(
-        f"Starting evaluation for instance {instance_id}.\n"
+        f"Starting resolver for instance {instance_id}.\n"
         f'Hint: run "tail -f {log_file}" to see live logs in a separate shell'
     )
     # Remove all existing handlers from logger
