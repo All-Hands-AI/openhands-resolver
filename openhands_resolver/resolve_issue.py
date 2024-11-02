@@ -199,6 +199,12 @@ async def process_issue(
 
     runtime = create_runtime(config, sid=f"{issue.number}")
     await runtime.connect()
+    
+    # Subscribe to event stream to ensure logs are printed
+    def on_event(evt):
+        print(evt)
+    runtime.event_stream.subscribe(on_event)
+    
     initialize_runtime(runtime)
 
     instruction, images_urls = issue_handler.get_instruction(issue, prompt_template, repo_instruction)

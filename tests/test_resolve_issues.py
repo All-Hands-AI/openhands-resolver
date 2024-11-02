@@ -397,6 +397,81 @@ When you think you have fixed the issue through code changes, please finish the 
     assert images_urls == ["https://sampleimage.com/sample.png"]
 
 
+@pytest.mark.asyncio
+async def test_event_stream_subscription(mock_output_dir):
+    # Mock dependencies
+    mock_runtime = MagicMock()
+    mock_runtime.event_stream = MagicMock()
+    mock_runtime.connect = AsyncMock()
+    mock_runtime.run_action.side_effect = [
+        create_cmd_output(
+            exit_code=0, content="", command_id=1, command="cd /workspace"
+        ),
+        create_cmd_output(
+            exit_code=0,
+            content="",
+            command_id=2,
+            command='git config --global core.pager ""',
+        ),
+    ]
+
+    # Mock issue and other required parameters
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=1,
+        title="Test Issue",
+        body="This is a test issue",
+    )
+    base_commit = "abcdef1234567890"
+    max_iterations = 5
+    llm_config = LLMConfig(model="test_model", api_key="test_api_key")
+    handler_instance = MagicMock()
+    handler_instance.get_instruction.return_value = ("Test instruction", [])
+    handler_instance.issue_type = "issue"
+    handler_instance.guess_success.return_value = (True, None, "Issue resolved successfully")
+
+    # Mock other functions
+    mock_run_controller = AsyncMock()
+    mock_complete_runtime = AsyncMock()
+    mock_run_controller.return_value = MagicMock(
+        history=MagicMock(
+            get_events=MagicMock(return_value=[NullObservation(content="")])
+        ),
+        metrics=MagicMock(get=MagicMock(return_value={"test_result": "passed"})),
+        last_error=None,
+    )
+    mock_complete_runtime.return_value = {"git_patch": "test patch"}
+
+    with patch(
+        "openhands_resolver.resolve_issue.create_runtime", return_value=mock_runtime
+    ), patch(
+        "openhands_resolver.resolve_issue.run_controller", mock_run_controller
+    ), patch(
+        "openhands_resolver.resolve_issue.complete_runtime", mock_complete_runtime
+    ), patch(
+        "openhands_resolver.resolve_issue.logger"
+    ):
+        # Call process_issue
+        await process_issue(
+            issue,
+            base_commit,
+            max_iterations,
+            llm_config,
+            mock_output_dir,
+            "test_image:latest",
+            "test_prompt",
+            handler_instance,
+            None,
+            reset_logger=False
+        )
+
+        # Verify that event_stream.subscribe was called
+        mock_runtime.event_stream.subscribe.assert_called_once()
+        # The subscribe function should have been called with a callable
+        assert callable(mock_runtime.event_stream.subscribe.call_args[0][0])
+
+
 def test_file_instruction_with_repo_instruction():
     issue = GithubIssue(
         owner="test_owner",
