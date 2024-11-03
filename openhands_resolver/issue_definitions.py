@@ -5,6 +5,8 @@ import requests
 import litellm
 import jinja2
 import json
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from openhands.memory.history import ShortTermHistory
 from openhands_resolver.github_issue import GithubIssue
@@ -145,8 +147,26 @@ class IssueHandler(IssueHandlerInterface):
         template = jinja2.Template(prompt_template)
         return template.render(body=issue.body + thread_context, repo_instruction=repo_instruction), images
 
-
-
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def _make_litellm_completion(self, prompt: str, llm_config: LLMConfig) -> str:
+        """Make a litellm completion call with retries and detailed error logging."""
+        try:
+            logger.info(f"Making litellm completion call for issue success check")
+            response = litellm.completion(
+                model=llm_config.model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"litellm API error during success check: {str(e)}")
+            logger.error(f"API request details - Model: {llm_config.model}, Base URL: {llm_config.base_url}")
+            logger.error(f"Prompt used: {prompt}")
+            if hasattr(e, 'response'):
+                logger.error(f"API response status: {e.response.status_code}")
+                logger.error(f"API response body: {e.response.text}")
+            raise
 
     def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
@@ -177,21 +197,19 @@ class IssueHandler(IssueHandlerInterface):
         ...
         """
 
-        response = litellm.completion(
-
-            model=llm_config.model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=llm_config.api_key,
-            base_url=llm_config.base_url,
-        )
-        
-        answer = response.choices[0].message.content.strip()
-        pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-        match = re.search(pattern, answer)
-        if match:
-            return match.group(1).lower() == 'true', None, match.group(2)
-        
-        return False, None, f"Failed to decode answer from LLM response: {answer}"
+        try:
+            answer = self._make_litellm_completion(prompt, llm_config)
+            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+            match = re.search(pattern, answer)
+            if match:
+                return match.group(1).lower() == 'true', None, match.group(2)
+            
+            logger.error(f"Failed to parse LLM response. Response format did not match expected pattern.")
+            logger.error(f"Raw response: {answer}")
+            return False, None, f"Failed to decode answer from LLM response: {answer}"
+        except Exception as e:
+            logger.error(f"Error during success check: {str(e)}")
+            return False, None, f"Error during success check: {str(e)}"
 
 
 
@@ -402,36 +420,24 @@ class PRHandler(IssueHandler):
                 ...
                 """
 
-                response = litellm.completion(
-                    model=llm_config.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    api_key=llm_config.api_key,
-                    base_url=llm_config.base_url,
-                )
-            
-                answer = response.choices[0].message.content.strip()
-                pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-                match = re.search(pattern, answer)
-                if match:
-                    success_list.append(match.group(1).lower() == 'true')
-                    explanation_list.append(match.group(2))
-                else:
+                try:
+                    answer = self._make_litellm_completion(prompt, llm_config)
+                    pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+                    match = re.search(pattern, answer)
+                    if match:
+                        success_list.append(match.group(1).lower() == 'true')
+                        explanation_list.append(match.group(2))
+                    else:
+                        logger.error(f"Failed to parse LLM response for review comment. Response format did not match expected pattern.")
+                        logger.error(f"Raw response: {answer}")
+                        success_list.append(False)
+                        explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+                except Exception as e:
+                    logger.error(f"Error during PR review comment success check: {str(e)}")
                     success_list.append(False)
-                    f"Failed to decode answer from LLM response: {answer}"
+                    explanation_list.append(f"Error during success check: {str(e)}")
         else:
             raise ValueError("Expected review comments to be initialized.")
         
         success = all(success_list)
         return success, success_list, json.dumps(explanation_list)
-
-
-
-
-
-
-
-
-
-
-
-

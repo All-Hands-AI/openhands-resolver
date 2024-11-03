@@ -1,6 +1,8 @@
 import argparse
 import os
 import shutil
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 import litellm
 from openhands_resolver.github_issue import GithubIssue
@@ -16,6 +18,7 @@ import json
 
 from openhands.core.config import LLMConfig
 from openhands_resolver.resolver_output import ResolverOutput
+from openhands.core.logger import openhands_logger as logger
 
 
 def apply_patch(repo_dir: str, patch: str) -> None:
@@ -293,6 +296,26 @@ def reply_to_comment(github_token: str, comment_id: str, reply: str):
     response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
     response.raise_for_status()
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def _make_litellm_completion(prompt: str, llm_config: LLMConfig) -> str:
+    """Make a litellm completion call with retries and detailed error logging."""
+    try:
+        logger.info(f"Making litellm completion call for PR comment summarization")
+        response = litellm.completion(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"litellm API error during PR comment summarization: {str(e)}")
+        logger.error(f"API request details - Model: {llm_config.model}, Base URL: {llm_config.base_url}")
+        logger.error(f"Prompt used: {prompt}")
+        if hasattr(e, 'response'):
+            logger.error(f"API response status: {e.response.status_code}")
+            logger.error(f"API response body: {e.response.text}")
+        raise
 
 def update_existing_pull_request(
     github_issue: GithubIssue,
@@ -349,16 +372,16 @@ def update_existing_pull_request(
 
                 # Summarize with LLM if provided
                 if llm_config is not None:
-                    prompt = f"Please create a concise overview of the following changes, commenting on whether all issues have been successfully resolved or if there are still issues remaining:\n\n{comment_message}"
-                    response = litellm.completion(
-                        model=llm_config.model,
-                        messages=[{"role": "user", "content": prompt}],
-                        api_key=llm_config.api_key,
-                        base_url=llm_config.base_url,
-                    ) 
-                    comment_message = response.choices[0].message.content.strip()
+                    try:
+                        prompt = f"Please create a concise overview of the following changes, commenting on whether all issues have been successfully resolved or if there are still issues remaining:\n\n{comment_message}"
+                        comment_message = _make_litellm_completion(prompt, llm_config)
+                    except Exception as e:
+                        logger.error(f"Failed to generate PR comment summary: {str(e)}")
+                        # Fall back to using the original comment message without LLM summarization
+                        logger.info("Using original comment message without LLM summarization")
 
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error(f"Error processing additional message: {str(e)}")
             comment_message = "New OpenHands update"
 
     # Post a comment on the PR
@@ -369,16 +392,19 @@ def update_existing_pull_request(
         }
         comment_response = requests.post(comment_url, headers=headers, json=comment_data)
         if comment_response.status_code != 201:
-            print(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
+            logger.error(f"Failed to post comment: {comment_response.status_code} {comment_response.text}")
         else:
             print(f"Comment added to the PR: {comment_message}")
 
     # Reply to each unresolved comment thread
     if additional_message and github_issue.thread_ids:
-        explanations = json.loads(additional_message)
-        for count, reply_comment in enumerate(explanations):
-            comment_id = github_issue.thread_ids[count]
-            reply_to_comment(github_token, comment_id, reply_comment)
+        try:
+            explanations = json.loads(additional_message)
+            for count, reply_comment in enumerate(explanations):
+                comment_id = github_issue.thread_ids[count]
+                reply_to_comment(github_token, comment_id, reply_comment)
+        except (json.JSONDecodeError, IndexError) as e:
+            logger.error(f"Error processing thread replies: {str(e)}")
 
     return pr_url
 
@@ -585,10 +611,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
