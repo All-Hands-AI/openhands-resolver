@@ -217,8 +217,10 @@ async def process_issue(
         if state is None:
             raise RuntimeError("Failed to run the agent.")
     except (ValueError, RuntimeError) as e:
-        logger.error(f"Agent failed with error: {str(e)}")
+        error_msg = f"Agent failed with error: {str(e)}"
+        logger.error(error_msg)
         state = None
+        last_error = error_msg
 
     # Get git patch
     return_val = await complete_runtime(runtime, base_commit)
