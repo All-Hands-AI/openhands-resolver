@@ -207,14 +207,18 @@ async def process_issue(
         content=instruction,
         images_urls=images_urls
     )
-    state: State | None = await run_controller(
-        config=config,
-        initial_user_action=action,
-        runtime=runtime,
-        fake_user_response_fn=codeact_user_response,
-    )
-    if state is None:
-        raise RuntimeError("Failed to run the agent.")
+    try:
+        state: State | None = await run_controller(
+            config=config,
+            initial_user_action=action,
+            runtime=runtime,
+            fake_user_response_fn=codeact_user_response,
+        )
+        if state is None:
+            raise RuntimeError("Failed to run the agent.")
+    except (ValueError, RuntimeError) as e:
+        logger.error(f"Agent failed with error: {str(e)}")
+        state = None
 
     # Get git patch
     return_val = await complete_runtime(runtime, base_commit)
@@ -223,20 +227,28 @@ async def process_issue(
         f'Got git diff for instance {issue.number}:\n--------\n{git_patch}\n--------'
     )
 
-    # Serialize histories
-    histories = [dataclasses.asdict(event) for event in state.history.get_events()]
-    metrics = state.metrics.get() if state.metrics else None
+    # Serialize histories and set defaults for failed state
+    if state is None:
+        histories = []
+        metrics = None
+        success = False
+        comment_success = None
+        success_explanation = "Agent failed to run"
+        last_error = "Agent failed to run or crashed"
+    else:
+        histories = [dataclasses.asdict(event) for event in state.history.get_events()]
+        metrics = state.metrics.get() if state.metrics else None
+        # determine success based on the history and the issue description
+        success, comment_success, success_explanation = issue_handler.guess_success(issue, state.history, llm_config)
 
-    # determine success based on the history and the issue description
-    success, comment_success, success_explanation = issue_handler.guess_success(issue, state.history, llm_config)
-
-    if issue_handler.issue_type == "pr" and comment_success:
-        success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
-        for success_indicator, explanation in zip(comment_success, json.loads(success_explanation)):
-                status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
-                bullet_point = colored("-", "yellow")
-                success_log += f"\n{bullet_point} {status}: {explanation}"
-        logger.info(success_log)
+        if issue_handler.issue_type == "pr" and comment_success:
+            success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
+            for success_indicator, explanation in zip(comment_success, json.loads(success_explanation)):
+                    status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
+                    bullet_point = colored("-", "yellow")
+                    success_log += f"\n{bullet_point} {status}: {explanation}"
+            logger.info(success_log)
+        last_error = state.last_error if state.last_error else None
 
     # Save the output
     output = ResolverOutput(
@@ -250,7 +262,7 @@ async def process_issue(
         success=success,
         comment_success=comment_success,
         success_explanation=success_explanation,
-        error=state.last_error if state and state.last_error else None,
+        error=last_error,
     )
     return output
 
