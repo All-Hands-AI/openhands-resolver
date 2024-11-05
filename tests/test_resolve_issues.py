@@ -15,7 +15,6 @@ from openhands.events.action import CmdRunAction
 from openhands.events.observation import CmdOutputObservation, NullObservation
 from openhands_resolver.resolver_output import ResolverOutput
 from openhands.core.config import LLMConfig
-from openhands.events.stream import EventStream
 
 
 @pytest.fixture
@@ -484,8 +483,7 @@ def test_guess_success():
         title="Test Issue",
         body="This is a test issue",
     )
-    mock_history = MagicMock(spec=EventStream)
-    mock_history.get_events.return_value = [
+    mock_history = [
         create_cmd_output(
             exit_code=0,
             content="",
@@ -515,8 +513,7 @@ def test_guess_success_with_thread_comments():
         body="This is a test issue",
         thread_comments=["First comment", "Second comment", "latest feedback:\nPlease add tests"]
     )
-    mock_history = MagicMock(spec=EventStream)
-    mock_history.get_events.return_value = [
+    mock_history = [
         MagicMock(message="I have added tests for this case")
     ]
     mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
@@ -568,8 +565,7 @@ def test_guess_success_failure():
         body="This is a test issue",
         thread_comments=["First comment", "Second comment", "latest feedback:\nPlease add tests"]
     )
-    mock_history = MagicMock(spec=EventStream)
-    mock_history.get_events.return_value = [
+    mock_history = [
         MagicMock(message="I have added tests for this case")
     ]
     mock_llm_config = LLMConfig(model="test_model", api_key="test_api_key")
@@ -594,8 +590,7 @@ def test_guess_success_negative_case():
         title="Test Issue",
         body="This is a test issue",
     )
-    mock_history = MagicMock(spec=EventStream)
-    mock_history.get_events.return_value = [
+    mock_history = [
         create_cmd_output(
             exit_code=0,
             content="",
@@ -626,8 +621,7 @@ def test_guess_success_invalid_output():
         title="Test Issue",
         body="This is a test issue",
     )
-    mock_history = MagicMock(spec=EventStream)
-    mock_history.get_events.return_value = [
+    mock_history = [
         create_cmd_output(
             exit_code=0,
             content="",
