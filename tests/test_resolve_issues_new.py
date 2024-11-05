@@ -2,7 +2,6 @@ import os
 import tempfile
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from openhands_resolver.issue_definitions import IssueHandler
 from openhands_resolver.resolve_issue import process_issue
 from openhands_resolver.github_issue import GithubIssue
 from openhands.events.observation import NullObservation
