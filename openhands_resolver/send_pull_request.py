@@ -61,8 +61,12 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             else:
                 newline = None  # Let Python decide
 
-            with open(old_path, "r", newline=newline) as f:
-                split_content = [x.strip(newline) for x in f.readlines()]
+            try:
+                with open(old_path, "r", newline=newline) as f:
+                    split_content = [x.strip(newline) for x in f.readlines()]
+            except Exception as e:
+                print(f"Error reading file {old_path}: {e}")
+                split_content = []
         else:
             newline = "\n"
             split_content = []
