@@ -15,6 +15,7 @@ import shlex
 import json
 
 from openhands.core.config import LLMConfig
+from openhands.core.logger import openhands_logger as logger
 from openhands_resolver.resolver_output import ResolverOutput
 
 
