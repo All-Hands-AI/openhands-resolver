@@ -316,12 +316,15 @@ class PRHandler(IssueHandler):
         all_issues = self._download_issues_from_github()
         converted_issues = []
         for issue in all_issues:
-            if any([issue.get(key) is None for key in ["number", "title", "body"]]):
+            # For PRs, body can be None
+            if any([issue.get(key) is None for key in ["number", "title"]]):
                 logger.warning(
-                    f"Skipping issue {issue} as it is missing number, title, or body."
+                    f"Skipping #{issue} as it is missing number or title."
                 )
                 continue            
 
+            # Handle None body for PRs
+            body = issue.get("body") if issue.get("body") is not None else ""
             closing_issues, unresolved_comments, thread_ids = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
@@ -329,7 +332,7 @@ class PRHandler(IssueHandler):
                                 repo=self.repo,
                                 number=issue["number"],
                                 title=issue["title"],
-                                body=issue["body"],
+                                body=body,
                                 closing_issues=closing_issues,
                                 review_comments=unresolved_comments,
                                 thread_ids=thread_ids,
