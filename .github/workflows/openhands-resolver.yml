@@ -89,7 +89,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ "${{ github.event.label.name }}" == "fix-me-experimental" ]; then
-            pip install git+https://github.com/all-hands-ai/openhands-resolver.git
+            pip install git+https://github.com/hotlaps/openhands-resolver.git
           else
             pip install openhands-resolver
           fi
