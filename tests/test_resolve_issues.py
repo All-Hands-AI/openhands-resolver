@@ -275,9 +275,7 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
         {
             "name": "successful_run",
             "run_controller_return": MagicMock(
-                history=MagicMock(
-                    get_events=MagicMock(return_value=[NullObservation(content="")])
-                ),
+                history=[NullObservation(content="")],
                 metrics=MagicMock(get=MagicMock(return_value={"test_result": "passed"})),
                 last_error=None,
             ),
