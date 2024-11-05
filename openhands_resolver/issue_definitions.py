@@ -6,7 +6,7 @@ import litellm
 import jinja2
 import json
 
-from openhands.events.stream import EventStream
+from openhands.events.event import Event
 from openhands_resolver.github_issue import GithubIssue
 from openhands.core.config import LLMConfig
 from openhands.core.logger import openhands_logger as logger
@@ -27,7 +27,7 @@ class IssueHandlerInterface(ABC):
         pass
     
     @abstractmethod
-    def guess_success(self, issue: GithubIssue, history: EventStream, llm_config: LLMConfig) -> tuple[bool, list[bool] | None, str]:
+    def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, list[bool] | None, str]:
         """Guess if the issue has been resolved based on the agent's output."""
         pass
 
@@ -148,10 +148,10 @@ class IssueHandler(IssueHandlerInterface):
 
 
 
-    def guess_success(self, issue: GithubIssue, history: EventStream, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
+    def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
        
-        last_message = list(history.get_events())[-1].message
+        last_message = history[-1].message
         # Include thread comments in the prompt if they exist
         issue_context = issue.body
         if issue.thread_comments:
@@ -363,10 +363,10 @@ class PRHandler(IssueHandler):
         return instruction, images
     
 
-    def guess_success(self, issue: GithubIssue, history: EventStream, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
+    def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
         
-        last_message = list(history.get_events())[-1].message
+        last_message = history[-1].message
         issues_context = json.dumps(issue.closing_issues, indent=4)
         success_list = []
         explanation_list = []
