@@ -238,7 +238,12 @@ async def process_issue(
         success_explanation = "Agent failed to run"
         last_error = "Agent failed to run or crashed"
     else:
-        histories = [dataclasses.asdict(event) for event in state.history.get_events()]
+        # Handle both cases where history is a list or an object with get_events()
+        if hasattr(state.history, 'get_events'):
+            events = state.history.get_events()
+        else:
+            events = state.history
+        histories = [dataclasses.asdict(event) for event in events]
         metrics = state.metrics.get() if state.metrics else None
         # determine success based on the history and the issue description
         success, comment_success, success_explanation = issue_handler.guess_success(issue, state.history, llm_config)
