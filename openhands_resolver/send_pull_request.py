@@ -157,10 +157,9 @@ def make_commit(repo_dir: str, issue: GithubIssue, issue_type: str) -> None:
         raise RuntimeError("ERROR: Openhands failed to make code changes.")
 
 
-    commit_message = f"Fix {issue_type} #{issue.number}: {shlex.quote(issue.title)}"
+    commit_message = f"Fix {issue_type} #{issue.number}: {issue.title}"
     result = subprocess.run(
-        f"git -C {repo_dir} commit -m {shlex.quote(commit_message)}",
-        shell=True,
+        ["git", "-C", repo_dir, "commit", "-m", commit_message],
         capture_output=True,
         text=True,
     )
@@ -171,8 +170,11 @@ def make_commit(repo_dir: str, issue: GithubIssue, issue_type: str) -> None:
 
 
 def branch_exists(base_url: str, branch_name: str, headers: dict) -> bool:
+    print(f"Checking if branch {branch_name} exists...")
     response = requests.get(f"{base_url}/branches/{branch_name}", headers=headers)
-    return response.status_code == 200
+    exists = response.status_code == 200
+    print(f"Branch {branch_name} exists: {exists}")
+    return exists
 
 def send_pull_request(
     github_issue: GithubIssue,
@@ -199,19 +201,22 @@ def send_pull_request(
     branch_name = base_branch_name
     attempt = 1
 
+    print("Checking if branch exists...")
     while branch_exists(base_url, branch_name, headers):
         attempt += 1
         branch_name = f"{base_branch_name}-try{attempt}"
 
     # Get the default branch
+    print("Getting default branch...")
     response = requests.get(f"{base_url}", headers=headers)
     response.raise_for_status()
     default_branch = response.json()["default_branch"]
+    print(f"Default branch: {default_branch}")
 
     # Create and checkout the new branch
+    print("Creating new branch...")
     result = subprocess.run(
-        f"git -C {patch_dir} checkout -b {branch_name}",
-        shell=True,
+        ["git", "-C", patch_dir, "checkout", "-b", branch_name],
         capture_output=True,
         text=True,
     )
@@ -225,15 +230,16 @@ def send_pull_request(
     push_owner = fork_owner if fork_owner else github_issue.owner
     push_repo = github_issue.repo
 
+    print("Pushing changes...")
     username_and_token = f"{github_username}:{github_token}" if github_username else f"x-auth-token:{github_token}"
-    push_command = (
-        f"git -C {patch_dir} push "
-        f"https://{username_and_token}@github.com/"
-        f"{push_owner}/{push_repo}.git {branch_name}"
+    push_url = f"https://{username_and_token}@github.com/{push_owner}/{push_repo}.git"
+    result = subprocess.run(
+        ["git", "-C", patch_dir, "push", push_url, branch_name],
+        capture_output=True,
+        text=True,
     )
-    result = subprocess.run(push_command, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Error pushing changes\n{push_command}\n{result.stderr}")
+        print(f"Error pushing changes: {result.stderr}")
         raise RuntimeError("Failed to push changes to the remote repository")
 
     pr_title = f"Fix issue #{github_issue.number}: {github_issue.title}"
@@ -249,7 +255,7 @@ def send_pull_request(
         url = f"https://github.com/{push_owner}/{github_issue.repo}/compare/{branch_name}?expand=1"
     else:
         data = {
-            "title": pr_title,
+            "title": pr_title,  # No need to escape title for GitHub API
             "body": pr_body,
             "head": branch_name,
             "base": default_branch,
