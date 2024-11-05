@@ -220,7 +220,7 @@ async def process_issue(
         error_msg = f"Agent failed with error: {str(e)}"
         logger.error(error_msg)
         state = None
-        last_error = error_msg
+        last_error: str | None = error_msg
 
     # Get git patch
     return_val = await complete_runtime(runtime, base_commit)
@@ -238,11 +238,9 @@ async def process_issue(
         success_explanation = "Agent failed to run"
         last_error = "Agent failed to run or crashed"
     else:
-        # Handle both cases where history is a list or an object with get_events()
-        if hasattr(state.history, 'get_events'):
-            events = state.history.get_events()
-        else:
-            events = state.history
+        if not hasattr(state.history, 'get_events'):
+            raise ValueError(f"History is of type {type(state.history)}")
+        events = state.history.get_events()
         histories = [dataclasses.asdict(event) for event in events]
         metrics = state.metrics.get() if state.metrics else None
         # determine success based on the history and the issue description
