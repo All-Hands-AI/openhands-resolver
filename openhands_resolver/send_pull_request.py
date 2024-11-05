@@ -64,8 +64,8 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             try:
                 with open(old_path, "r", newline=newline) as f:
                     split_content = [x.strip(newline) for x in f.readlines()]
-            except Exception as e:
-                print(f"Error reading file {old_path}: {e}")
+            except UnicodeDecodeError as e:
+                logger.error(f"Error reading file {old_path}: {e}")
                 split_content = []
         else:
             newline = "\n"
