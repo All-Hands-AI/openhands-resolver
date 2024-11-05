@@ -319,7 +319,7 @@ class PRHandler(IssueHandler):
             # For PRs, body can be None
             if any([issue.get(key) is None for key in ["number", "title"]]):
                 logger.warning(
-                    f"Skipping PR {issue} as it is missing number or title."
+                    f"Skipping #{issue} as it is missing number or title."
                 )
                 continue            
 
