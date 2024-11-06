@@ -1,5 +1,8 @@
 from unittest.mock import patch, MagicMock
-from openhands_resolver.issue_definitions import IssueHandler
+from openhands_resolver.issue_definitions import IssueHandler, PRHandler
+from openhands_resolver.github_issue import GithubIssue
+from openhands.events.action.message import MessageAction
+from openhands.core.config import LLMConfig
 
 def test_get_converted_issues_initializes_review_comments():
     # Mock the necessary dependencies
@@ -37,3 +40,81 @@ def test_get_converted_issues_initializes_review_comments():
         assert issues[0].body == 'Test Body'
         assert issues[0].owner == 'test-owner'
         assert issues[0].repo == 'test-repo'
+
+def test_pr_handler_guess_success_with_thread_comments():
+    # Create a PR handler instance
+    handler = PRHandler('test-owner', 'test-repo', 'test-token')
+    
+    # Create a mock issue with thread comments but no review comments
+    issue = GithubIssue(
+        owner='test-owner',
+        repo='test-repo',
+        number=1,
+        title='Test PR',
+        body='Test Body',
+        thread_comments=['First comment', 'Second comment'],
+        closing_issues=['Issue description'],
+        review_comments=None,
+        thread_ids=None,
+        head_branch='test-branch'
+    )
+    
+    # Create mock history
+    history = [MessageAction(content='Fixed the issue by implementing X and Y')]
+    
+    # Create mock LLM config
+    llm_config = LLMConfig(model='test-model', api_key='test-key')
+    
+    # Mock the LLM response
+    mock_response = MagicMock()
+    mock_response.choices = [
+        MagicMock(
+            message=MagicMock(
+                content="""--- success
+true
+
+--- explanation
+The changes successfully address the feedback."""
+            )
+        )
+    ]
+    
+    # Test the guess_success method
+    with patch('litellm.completion', return_value=mock_response):
+        success, success_list, explanation = handler.guess_success(issue, history, llm_config)
+        
+        # Verify the results
+        assert success is True
+        assert success_list == [True]
+        assert "successfully address" in explanation
+
+def test_pr_handler_guess_success_no_comments():
+    # Create a PR handler instance
+    handler = PRHandler('test-owner', 'test-repo', 'test-token')
+    
+    # Create a mock issue with no comments
+    issue = GithubIssue(
+        owner='test-owner',
+        repo='test-repo',
+        number=1,
+        title='Test PR',
+        body='Test Body',
+        thread_comments=None,
+        closing_issues=['Issue description'],
+        review_comments=None,
+        thread_ids=None,
+        head_branch='test-branch'
+    )
+    
+    # Create mock history
+    history = [MessageAction(content='Fixed the issue')]
+    
+    # Create mock LLM config
+    llm_config = LLMConfig(model='test-model', api_key='test-key')
+    
+    # Test that it raises ValueError when no comments are present
+    try:
+        handler.guess_success(issue, history, llm_config)
+        assert False, "Expected ValueError to be raised"
+    except ValueError as e:
+        assert str(e) == "Expected review comments or thread comments to be initialized."

@@ -376,6 +376,7 @@ class PRHandler(IssueHandler):
         success_list = []
         explanation_list = []
 
+        # Handle PRs with file-specific review comments
         if issue.review_comments:
             for review_comment in issue.review_comments:
                 formatted_comment = json.dumps(review_comment["comment"], indent=4)
@@ -396,7 +397,7 @@ class PRHandler(IssueHandler):
                 {last_message}
 
                 (1) has the feedback been successfully incorporated?
-                (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+                (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
 
                 Answer in exactly the format below, with only true or false for success, and an explanation of the result.
 
@@ -420,14 +421,56 @@ class PRHandler(IssueHandler):
                 if match:
                     success_list.append(match.group(1).lower() == 'true')
                     explanation_list.append(match.group(2))
-                else:
-                    success_list.append(False)
-                    f"Failed to decode answer from LLM response: {answer}"
-        else:
-            raise ValueError("Expected review comments to be initialized.")
+        # Handle PRs with only thread comments (no file-specific review comments)
+        elif issue.thread_comments:
+            thread_context = "\n---\n".join(issue.thread_comments)
+            prompt = f"""You are given one or more issue descriptions, the PR thread comments, and the last message from an AI agent attempting to address the feedback. Determine if the feedback has been successfully resolved.
+            
+            Issue descriptions:
+            {issues_context}
+
+            PR Thread Comments:
+            {thread_context}
+
+            Last message from AI agent:
+            {last_message}
+
+            (1) has the feedback been successfully incorporated?
+            (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+
+            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+
+            --- success
+            true/false
+
+            --- explanation
+            ...
+            """
+
+            response = litellm.completion(
+                model=llm_config.model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url,
+            )
         
-        success = all(success_list)
-        return success, success_list, json.dumps(explanation_list)
+            answer = response.choices[0].message.content.strip()
+            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+            match = re.search(pattern, answer)
+            if match:
+                success_list.append(match.group(1).lower() == 'true')
+                explanation_list.append(match.group(2))
+            else:
+                success_list.append(False)
+                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+        else:
+            # No review comments or thread comments found
+            raise ValueError("Expected review comments or thread comments to be initialized.")
+            
+        # Return overall success (all must be true) and explanations
+        if not success_list:
+            return False, None, "No feedback was processed"
+        return all(success_list), success_list, "\n".join(explanation_list)
 
 
 
