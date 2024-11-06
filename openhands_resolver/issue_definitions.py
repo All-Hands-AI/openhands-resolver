@@ -119,6 +119,8 @@ class IssueHandler(IssueHandlerInterface):
             
             # Get issue thread comments
             thread_comments = self._get_issue_comments(issue["number"])
+            # Convert empty lists to None for optional fields
+            thread_comments = None if not thread_comments else thread_comments
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
