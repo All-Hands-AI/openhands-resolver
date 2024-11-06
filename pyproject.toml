@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "openhands-resolver"
-version = "0.2.5"
+version = "0.2.6"
 description = "OpenHands Issue Resolver"
 authors = ["All Hands AI"]
 license = "MIT"
@@ -17,7 +17,8 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.12"
-openhands-ai = "^0.12.0"
+openhands-ai = "^0.12.3"
+
 pandas = "^2.2.3"
 pytest = "^8.3.3"
 
@@ -32,4 +33,5 @@ types-toml = "*"
 [tool.poetry.group.test.dependencies]
 pytest = "*"
 pytest-asyncio = "*"
+
 

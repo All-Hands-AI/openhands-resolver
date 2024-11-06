@@ -15,6 +15,7 @@ import shlex
 import json
 
 from openhands.core.config import LLMConfig
+from openhands.core.logger import openhands_logger as logger
 from openhands_resolver.resolver_output import ResolverOutput
 
 
@@ -61,8 +62,12 @@ def apply_patch(repo_dir: str, patch: str) -> None:
             else:
                 newline = None  # Let Python decide
 
-            with open(old_path, "r", newline=newline) as f:
-                split_content = [x.strip(newline) for x in f.readlines()]
+            try:
+                with open(old_path, "r", newline=newline) as f:
+                    split_content = [x.strip(newline) for x in f.readlines()]
+            except UnicodeDecodeError as e:
+                logger.error(f"Error reading file {old_path}: {e}")
+                split_content = []
         else:
             newline = "\n"
             split_content = []

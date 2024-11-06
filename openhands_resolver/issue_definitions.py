@@ -6,7 +6,7 @@ import litellm
 import jinja2
 import json
 
-from openhands.memory.history import ShortTermHistory
+from openhands.events.event import Event
 from openhands_resolver.github_issue import GithubIssue
 from openhands.core.config import LLMConfig
 from openhands.core.logger import openhands_logger as logger
@@ -27,7 +27,7 @@ class IssueHandlerInterface(ABC):
         pass
     
     @abstractmethod
-    def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, list[bool] | None, str]:
+    def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, list[bool] | None, str]:
         """Guess if the issue has been resolved based on the agent's output."""
         pass
 
@@ -75,7 +75,7 @@ class IssueHandler(IssueHandlerInterface):
         image_pattern = r'!\[.*?\]\((https?://[^\s)]+)\)'
         return re.findall(image_pattern, issue_body)
 
-    def _get_issue_comments(self, issue_number: int) -> list[str]:
+    def _get_issue_comments(self, issue_number: int) -> list[str] | None:
         """Download comments for a specific issue from Github."""
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}/comments"
         headers = {
@@ -96,7 +96,7 @@ class IssueHandler(IssueHandlerInterface):
             all_comments.extend([comment["body"] for comment in comments])
             params["page"] += 1
 
-        return all_comments
+        return all_comments if all_comments else None
     
     def get_converted_issues(self) -> list[GithubIssue]:
         """Download issues from Github.
@@ -119,6 +119,7 @@ class IssueHandler(IssueHandlerInterface):
             
             # Get issue thread comments
             thread_comments = self._get_issue_comments(issue["number"])
+            # Convert empty lists to None for optional fields
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
@@ -126,6 +127,7 @@ class IssueHandler(IssueHandlerInterface):
                                 title=issue["title"],
                                 body=issue["body"],
                                 thread_comments=thread_comments,
+                                review_comments=None,  # Initialize review comments as None for regular issues
                             )
                 
             converted_issues.append(issue_details)
@@ -148,10 +150,10 @@ class IssueHandler(IssueHandlerInterface):
 
 
 
-    def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
+    def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
        
-        last_message = history.get_events_as_list()[-1].message    
+        last_message = history[-1].message
         # Include thread comments in the prompt if they exist
         issue_context = issue.body
         if issue.thread_comments:
@@ -316,12 +318,15 @@ class PRHandler(IssueHandler):
         all_issues = self._download_issues_from_github()
         converted_issues = []
         for issue in all_issues:
-            if any([issue.get(key) is None for key in ["number", "title", "body"]]):
+            # For PRs, body can be None
+            if any([issue.get(key) is None for key in ["number", "title"]]):
                 logger.warning(
-                    f"Skipping issue {issue} as it is missing number, title, or body."
+                    f"Skipping #{issue} as it is missing number or title."
                 )
                 continue            
 
+            # Handle None body for PRs
+            body = issue.get("body") if issue.get("body") is not None else ""
             closing_issues, unresolved_comments, thread_ids = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
@@ -329,7 +334,7 @@ class PRHandler(IssueHandler):
                                 repo=self.repo,
                                 number=issue["number"],
                                 title=issue["title"],
-                                body=issue["body"],
+                                body=body,
                                 closing_issues=closing_issues,
                                 review_comments=unresolved_comments,
                                 thread_ids=thread_ids,
@@ -363,14 +368,15 @@ class PRHandler(IssueHandler):
         return instruction, images
     
 
-    def guess_success(self, issue: GithubIssue, history: ShortTermHistory, llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
+    def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
         
-        last_message = history.get_events_as_list()[-1].message
+        last_message = history[-1].message
         issues_context = json.dumps(issue.closing_issues, indent=4)
         success_list = []
         explanation_list = []
 
+        # Handle PRs with file-specific review comments
         if issue.review_comments:
             for review_comment in issue.review_comments:
                 formatted_comment = json.dumps(review_comment["comment"], indent=4)
@@ -391,7 +397,7 @@ class PRHandler(IssueHandler):
                 {last_message}
 
                 (1) has the feedback been successfully incorporated?
-                (2) If the feebdack has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+                (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
 
                 Answer in exactly the format below, with only true or false for success, and an explanation of the result.
 
@@ -415,14 +421,56 @@ class PRHandler(IssueHandler):
                 if match:
                     success_list.append(match.group(1).lower() == 'true')
                     explanation_list.append(match.group(2))
-                else:
-                    success_list.append(False)
-                    f"Failed to decode answer from LLM response: {answer}"
-        else:
-            raise ValueError("Expected review comments to be initialized.")
+        # Handle PRs with only thread comments (no file-specific review comments)
+        elif issue.thread_comments:
+            thread_context = "\n---\n".join(issue.thread_comments)
+            prompt = f"""You are given one or more issue descriptions, the PR thread comments, and the last message from an AI agent attempting to address the feedback. Determine if the feedback has been successfully resolved.
+            
+            Issue descriptions:
+            {issues_context}
+
+            PR Thread Comments:
+            {thread_context}
+
+            Last message from AI agent:
+            {last_message}
+
+            (1) has the feedback been successfully incorporated?
+            (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
+
+            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+
+            --- success
+            true/false
+
+            --- explanation
+            ...
+            """
+
+            response = litellm.completion(
+                model=llm_config.model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url,
+            )
         
-        success = all(success_list)
-        return success, success_list, json.dumps(explanation_list)
+            answer = response.choices[0].message.content.strip()
+            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+            match = re.search(pattern, answer)
+            if match:
+                success_list.append(match.group(1).lower() == 'true')
+                explanation_list.append(match.group(2))
+            else:
+                success_list.append(False)
+                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+        else:
+            # No review comments or thread comments found
+            raise ValueError("Expected review comments or thread comments to be initialized.")
+            
+        # Return overall success (all must be true) and explanations
+        if not success_list:
+            return False, None, "No feedback was processed"
+        return all(success_list), success_list, "\n".join(explanation_list)
 
 
 
