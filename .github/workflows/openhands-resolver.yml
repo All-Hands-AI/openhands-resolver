@@ -102,7 +102,7 @@ jobs:
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           PYTHONPATH: ""
         run: |
-          cd /tmp && DEBUG=true python -m openhands_resolver.resolve_issue \
+          cd /tmp && python -m openhands_resolver.resolve_issue \
             --repo ${{ github.repository }} \
             --issue-number ${{ env.ISSUE_NUMBER }} \
             --issue-type ${{ env.ISSUE_TYPE }} \
