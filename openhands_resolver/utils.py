@@ -16,7 +16,7 @@ from openhands.events.action.message import MessageAction
 def codeact_user_response(
     state: State,
     encapsulate_solution: bool = False,
-    try_parse: Callable[[Action], str] | None = None,
+    try_parse: Callable[[Action | None], str] | None = None,
 ) -> str:
     encaps_str = (
         (
