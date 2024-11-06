@@ -126,7 +126,7 @@ class IssueHandler(IssueHandlerInterface):
                                 title=issue["title"],
                                 body=issue["body"],
                                 thread_comments=thread_comments,
-                                review_comments=[],  # Initialize empty review comments for regular issues
+                                review_comments=None,  # Initialize review comments as None for regular issues
                             )
                 
             converted_issues.append(issue_details)

@@ -1,7 +1,5 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from openhands_resolver.issue_definitions import IssueHandler
-from openhands_resolver.github_issue import GithubIssue
 
 def test_get_converted_issues_initializes_review_comments():
     # Mock the necessary dependencies
@@ -30,8 +28,8 @@ def test_get_converted_issues_initializes_review_comments():
         # Verify that we got exactly one issue
         assert len(issues) == 1
         
-        # Verify that review_comments is initialized as an empty list
-        assert issues[0].review_comments == []
+        # Verify that review_comments is initialized as None
+        assert issues[0].review_comments is None
         
         # Verify other fields are set correctly
         assert issues[0].number == 1
