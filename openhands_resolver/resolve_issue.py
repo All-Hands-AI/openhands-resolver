@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import json
 from typing import Any
-
+from uuid import uuid4
 from termcolor import colored
 
 from openhands_resolver.github_issue import GithubIssue
@@ -202,7 +202,7 @@ async def process_issue(
     await runtime.connect()
     async def on_event(evt):
         logger.info(evt)
-    runtime.event_stream.subscribe(EventStreamSubscriber.RESOLVER, on_event, append=True)
+    runtime.event_stream.subscribe(EventStreamSubscriber.MAIN, on_event, str(uuid4()))
 
     initialize_runtime(runtime)
 
