@@ -463,9 +463,48 @@ class PRHandler(IssueHandler):
             else:
                 success_list.append(False)
                 explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+        elif issue.thread_comments:
+            # If there are thread comments but no review comments, process thread comments
+            thread_context = "\n".join(issue.thread_comments)
+            prompt = f"""Given the following issue thread comments and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
+
+            Thread comments:
+            {thread_context}
+
+            Last message from AI agent:
+            {last_message}
+
+            (1) has the issue been successfully resolved?
+            (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
+
+            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
+
+            --- success
+            true/false
+
+            --- explanation
+            ...
+            """
+
+            response = litellm.completion(
+                model=llm_config.model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url,
+            )
+            
+            answer = response.choices[0].message.content.strip()
+            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+            match = re.search(pattern, answer)
+            if match:
+                success_list.append(match.group(1).lower() == 'true')
+                explanation_list.append(match.group(2))
+            else:
+                success_list.append(False)
+                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
         else:
             # No review comments or thread comments found
-            raise ValueError("Expected review comments or thread comments to be initialized.")
+            raise ValueError("Expected either review comments or thread comments to be initialized.")
             
         # Return overall success (all must be true) and explanations
         if not success_list:

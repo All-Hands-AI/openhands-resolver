@@ -117,4 +117,4 @@ def test_pr_handler_guess_success_no_comments():
         handler.guess_success(issue, history, llm_config)
         assert False, "Expected ValueError to be raised"
     except ValueError as e:
-        assert str(e) == "Expected review comments or thread comments to be initialized."
+        assert str(e) == "Expected either review comments or thread comments to be initialized."
