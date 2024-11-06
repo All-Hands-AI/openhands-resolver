@@ -1,5 +1,4 @@
 import os
-import shlex
 import tempfile
 import pytest
 from unittest.mock import patch, MagicMock, call
@@ -353,14 +352,12 @@ def test_send_pull_request(
     checkout_call, push_call = mock_run.call_args_list
 
     assert checkout_call == call(
-        f"git -C {repo_path} checkout -b openhands-fix-issue-42",
-        shell=True,
+        ['git', '-C', repo_path, 'checkout', '-b', 'openhands-fix-issue-42'],
         capture_output=True,
         text=True,
     )
     assert push_call == call(
-        f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git openhands-fix-issue-42",
-        shell=True,
+        ['git', '-C', repo_path, 'push', 'https://test-user:test-token@github.com/test-owner/test-repo.git', 'openhands-fix-issue-42'],
         capture_output=True,
         text=True,
     )
@@ -418,15 +415,11 @@ def test_send_pull_request_git_push_failure(
 
     # Check the git checkout -b command
     checkout_call = mock_run.call_args_list[0]
-    assert checkout_call[0][0].startswith(f"git -C {repo_path} checkout -b")
-    assert checkout_call[1] == {"shell": True, "capture_output": True, "text": True}
+    assert checkout_call[0][0] == ['git', '-C', repo_path, 'checkout', '-b', 'openhands-fix-issue-42']
 
     # Check the git push command
     push_call = mock_run.call_args_list[1]
-    assert push_call[0][0].startswith(
-        f"git -C {repo_path} push https://test-user:test-token@github.com/"
-    )
-    assert push_call[1] == {"shell": True, "capture_output": True, "text": True}
+    assert push_call[0][0] == ['git', '-C', repo_path, 'push', 'https://test-user:test-token@github.com/test-owner/test-repo.git', 'openhands-fix-issue-42']
 
     # Assert that no pull request was created
     mock_post.assert_not_called()
@@ -873,14 +866,12 @@ def test_send_pull_request_branch_naming(
     checkout_call, push_call = mock_run.call_args_list
 
     assert checkout_call == call(
-        f"git -C {repo_path} checkout -b openhands-fix-issue-42-try3",
-        shell=True,
+        ['git', '-C', repo_path, 'checkout', '-b', 'openhands-fix-issue-42-try3'],
         capture_output=True,
         text=True,
     )
     assert push_call == call(
-        f"git -C {repo_path} push https://test-user:test-token@github.com/test-owner/test-repo.git openhands-fix-issue-42-try3",
-        shell=True,
+        ['git', '-C', repo_path, 'push', 'https://test-user:test-token@github.com/test-owner/test-repo.git', 'openhands-fix-issue-42-try3'],
         capture_output=True,
         text=True,
     )
@@ -989,9 +980,8 @@ def test_make_commit_escapes_issue_title(mock_subprocess_run):
 
     # Check the git commit call
     git_commit_call = calls[3][0][0]
-    expected_commit_message = "Fix issue #42: 'Issue with \"quotes\" and $pecial characters'"
-    shlex_quote_message = shlex.quote(expected_commit_message)
-    assert f"git -C {repo_dir} commit -m {shlex_quote_message}" in git_commit_call
+    expected_commit_message = "Fix issue #42: Issue with \"quotes\" and $pecial characters"
+    assert ['git', '-C', '/path/to/repo', 'commit', '-m', expected_commit_message] == git_commit_call
 
 @patch('subprocess.run')
 def test_make_commit_no_changes(mock_subprocess_run):
