@@ -145,7 +145,7 @@ class IssueHandler(IssueHandlerInterface):
         images.extend(self._extract_image_urls(thread_context))
 
         template = jinja2.Template(prompt_template)
-        return template.render(body=issue.title + issue.body + thread_context, repo_instruction=repo_instruction), images
+        return template.render(body=issue.title + "\n\n" + issue.body + thread_context, repo_instruction=repo_instruction), images
 
 
 

@@ -384,7 +384,7 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
     )
     issue_handler = IssueHandler("owner", "repo", "token")
     instruction, images_urls = issue_handler.get_instruction(issue, mock_prompt_template, None)
-    expected_instruction = "Issue: This is a test issue refer to image ![First Image](https://sampleimage.com/image1.png)\n\nPlease fix this issue."
+    expected_instruction = "Issue: Test Issue\n\nThis is a test issue refer to image ![First Image](https://sampleimage.com/image1.png)\n\nPlease fix this issue."
     
     assert images_urls == ["https://sampleimage.com/image1.png"]
     assert issue_handler.issue_type == "issue"
@@ -426,6 +426,8 @@ def test_file_instruction():
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
 # Problem Statement
+Test Issue
+
 This is a test issue ![image](https://sampleimage.com/sample.png)
 
 IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
@@ -458,6 +460,8 @@ def test_file_instruction_with_repo_instruction():
 An environment has been set up for you to start working. You may assume all necessary tools are installed.
 
 # Problem Statement
+Test Issue
+
 This is a test issue
 
 IMPORTANT: You should ONLY interact with the environment provided to you AND NEVER ASK FOR HUMAN HELP.
