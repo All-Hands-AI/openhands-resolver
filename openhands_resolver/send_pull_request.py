@@ -11,7 +11,6 @@ from openhands_resolver.io_utils import (
 from openhands_resolver.patching import parse_patch, apply_diff
 import requests
 import subprocess
-import shlex
 import json
 
 from openhands.core.config import LLMConfig

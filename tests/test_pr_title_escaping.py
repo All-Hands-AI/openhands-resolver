@@ -1,4 +1,3 @@
-import pytest
 from openhands_resolver.github_issue import GithubIssue
 from openhands_resolver.send_pull_request import make_commit
 import os
