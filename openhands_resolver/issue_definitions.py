@@ -239,11 +239,6 @@ class PRHandler(IssueHandler):
                                 nodes {
                                     body
                                     state
-                                    comments(first: 100) {
-                                        nodes {
-                                            body
-                                        }
-                                    }
                                 }
                             }
                             reviewThreads(first: 100) {
@@ -380,7 +375,7 @@ class PRHandler(IssueHandler):
 
         # Handle PRs with file-specific review comments
         review_thread_str = None
-        review_thread_files = None
+        review_thread_file_str = None
         if issue.review_threads:
             review_threads = [review_thread.comment for review_thread in issue.review_threads]
             review_thread_files = []

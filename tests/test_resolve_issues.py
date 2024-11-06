@@ -641,6 +641,59 @@ def test_guess_success_invalid_output():
         assert explanation == "Failed to decode answer from LLM response: This is not a valid output"
 
 
+def test_download_pr_with_review_comments():
+    handler = PRHandler("owner", "repo", "token")
+    mock_response = MagicMock()
+    mock_response.json.side_effect = [
+        [
+            {"number": 1, "title": "PR 1", "body": "This is a pull request", "head": {"ref": "b1"}},
+        ],
+        None,
+    ]
+    mock_response.raise_for_status = MagicMock()
+
+    # Mock for GraphQL request with review comments but no threads
+    mock_graphql_response = MagicMock()
+    mock_graphql_response.json.side_effect = lambda: {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "closingIssuesReferences": {
+                        "edges": []
+                    },
+                    "reviews": {
+                        "nodes": [
+                            {"body": "Please fix this typo"},
+                            {"body": "Add more tests"}
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+    mock_graphql_response.raise_for_status = MagicMock()
+
+    with patch('requests.get', return_value=mock_response):
+        with patch('requests.post', return_value=mock_graphql_response):  
+            issues = handler.get_converted_issues()
+
+    assert len(issues) == 1
+    assert handler.issue_type == "pr"
+    assert isinstance(issues[0], GithubIssue)
+    assert issues[0].number == 1
+    assert issues[0].title == "PR 1"
+    assert issues[0].head_branch == "b1"
+    
+    # Verify review comments are set but threads are empty
+    assert len(issues[0].review_comments) == 2
+    assert issues[0].review_comments[0] == "Please fix this typo"
+    assert issues[0].review_comments[1] == "Add more tests"
+    assert not issues[0].review_threads
+    assert not issues[0].closing_issues
+    assert not issues[0].thread_ids
+
+
 if __name__ == "__main__":
     pytest.main()
 
