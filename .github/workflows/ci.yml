@@ -1,4 +1,4 @@
-name: CI
+name: "**CI**"
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
       run: |
         pip install poetry
         poetry install
-    - name: Run tests
+    - name: "**Run tests**"
       run: poetry run pytest tests/test*.py -v
 
   pre-commit:
@@ -32,5 +32,5 @@ jobs:
         python-version: 3.12
     - name: Install pre-commit
       run: pip install pre-commit
-    - name: Run pre-commit
+    - name: "**Run pre-commit**"
       run: pre-commit run --all-files

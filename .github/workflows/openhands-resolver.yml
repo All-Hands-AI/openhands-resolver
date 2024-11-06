@@ -1,4 +1,4 @@
-name: Auto-Fix Tagged Issue with OpenHands
+name: "**Auto-Fix** Tagged **Issue** with **OpenHands**"
 
 on:
   workflow_call:
@@ -94,7 +94,7 @@ jobs:
             pip install openhands-resolver
           fi
 
-      - name: Attempt to resolve issue
+      - name: "**Attempt to resolve issue**"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
@@ -117,7 +117,7 @@ jobs:
             echo "RESOLUTION_SUCCESS=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create draft PR or push branch
+      - name: "**Create draft PR or push branch**"
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
