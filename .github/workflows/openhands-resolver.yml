@@ -47,11 +47,11 @@ jobs:
 
       - name: Check required environment variables
         env:
-          LLM_MODEL: ${{ secrets.LLM_MODEL }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-          PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
+          LLM_MODEL: ${{ inputs.issue_number != null && secrets.LLM_MODEL || vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ inputs.issue_number != null && secrets.LLM_API_KEY || vars.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ inputs.issue_number != null && secrets.LLM_BASE_URL || vars.LLM_BASE_URL }}
+          PAT_TOKEN: ${{ inputs.issue_number != null && secrets.PAT_TOKEN || vars.PAT_TOKEN }}
+          PAT_USERNAME: ${{ inputs.issue_number != null && secrets.PAT_USERNAME || vars.PAT_USERNAME }}
         run: |
           required_vars=("LLM_MODEL" "LLM_API_KEY" "PAT_TOKEN" "PAT_USERNAME")
           for var in "${required_vars[@]}"; do
@@ -97,9 +97,9 @@ jobs:
       - name: Attempt to resolve issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LLM_MODEL: ${{ secrets.LLM_MODEL }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ inputs.issue_number != null && secrets.LLM_MODEL || vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ inputs.issue_number != null && secrets.LLM_API_KEY || vars.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ inputs.issue_number != null && secrets.LLM_BASE_URL || vars.LLM_BASE_URL }}
           PYTHONPATH: ""
         run: |
           cd /tmp && python -m openhands_resolver.resolve_issue \
@@ -119,10 +119,10 @@ jobs:
 
       - name: Create draft PR or push branch
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-          LLM_MODEL: ${{ secrets.LLM_MODEL }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          GITHUB_TOKEN: ${{ inputs.issue_number != null && secrets.PAT_TOKEN || vars.PAT_TOKEN }}
+          LLM_MODEL: ${{ inputs.issue_number != null && secrets.LLM_MODEL || vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ inputs.issue_number != null && secrets.LLM_API_KEY || vars.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ inputs.issue_number != null && secrets.LLM_BASE_URL || vars.LLM_BASE_URL }}
           PYTHONPATH: ""
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
