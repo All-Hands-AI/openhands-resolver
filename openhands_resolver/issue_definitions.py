@@ -75,7 +75,7 @@ class IssueHandler(IssueHandlerInterface):
         image_pattern = r'!\[.*?\]\((https?://[^\s)]+)\)'
         return re.findall(image_pattern, issue_body)
 
-    def _get_issue_comments(self, issue_number: int) -> list[str]:
+    def _get_issue_comments(self, issue_number: int) -> list[str] | None:
         """Download comments for a specific issue from Github."""
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}/comments"
         headers = {
@@ -96,7 +96,7 @@ class IssueHandler(IssueHandlerInterface):
             all_comments.extend([comment["body"] for comment in comments])
             params["page"] += 1
 
-        return all_comments
+        return all_comments if all_comments else None
     
     def get_converted_issues(self) -> list[GithubIssue]:
         """Download issues from Github.
@@ -119,6 +119,7 @@ class IssueHandler(IssueHandlerInterface):
             
             # Get issue thread comments
             thread_comments = self._get_issue_comments(issue["number"])
+            # Convert empty lists to None for optional fields
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
@@ -126,6 +127,7 @@ class IssueHandler(IssueHandlerInterface):
                                 title=issue["title"],
                                 body=issue["body"],
                                 thread_comments=thread_comments,
+                                review_comments=None,  # Initialize review comments as None for regular issues
                             )
                 
             converted_issues.append(issue_details)
