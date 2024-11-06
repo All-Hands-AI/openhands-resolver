@@ -10,7 +10,7 @@ from openhands_resolver.resolve_issue import (
     complete_runtime,
     process_issue,
 )
-from openhands_resolver.github_issue import GithubIssue
+from openhands_resolver.github_issue import GithubIssue, ReviewThread
 from openhands.events.action import CmdRunAction
 from openhands.events.observation import CmdOutputObservation, NullObservation
 from openhands_resolver.resolver_output import ResolverOutput
@@ -50,7 +50,7 @@ def mock_prompt_template():
 
 @pytest.fixture
 def mock_followup_prompt_template():
-    return "Issue context: {{ issues }}\n\nFiles: {{ files }}\n\nFollowup feedback {{ body }}\n\nPlease fix this issue."
+    return "Issue context: {{ issues }}\n\nReview comments: {{ review_comments }}\n\nReview threads: {{ review_threads }}\n\nFiles: {{ files }}\n\nPlease fix this issue."
 
 
 
@@ -168,7 +168,7 @@ def test_download_pr_from_github():
                                     "id": "2",
                                     "comments": {
                                         "nodes": [
-                                            {"body": "Resolved comment 1"},
+                                            {"body": "Resolved comment 1", "path": "/some/file.py"}
                                         ]
                                     }
                                 }
@@ -179,7 +179,7 @@ def test_download_pr_from_github():
                                     "id": "3",
                                     "comments": {
                                         "nodes": [
-                                            {"body": "Unresolved comment 3"},
+                                            {"body": "Unresolved comment 3", "path": "/another/file.py"}
                                         ]
                                     }
                                 }
@@ -193,7 +193,6 @@ def test_download_pr_from_github():
 
     mock_graphql_response.raise_for_status = MagicMock()
 
-
     with patch('requests.get', return_value=mock_response):
         with patch('requests.post', return_value=mock_graphql_response):  
             issues = handler.get_converted_issues()
@@ -205,9 +204,11 @@ def test_download_pr_from_github():
     assert [issue.title for issue in issues] == ["PR 1", "My PR", "PR 3"]
     assert [issue.head_branch for issue in issues] == ["b1", "b2", "b3"]
     
-    assert [review_comment["comment"] for review_comment in issues[0].review_comments] == ["Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n", "latest feedback:\nUnresolved comment 3\n"]
-    assert [len(review_comment["files"]) for review_comment in issues[0].review_comments] == [1, 0]
-    assert issues[0].review_comments[0]["files"] == ["/frontend/header.tsx"]
+    assert len(issues[0].review_threads) == 2  # Only unresolved threads
+    assert issues[0].review_threads[0].comment == "Unresolved comment 1\n---\nlatest feedback:\nFollow up thread\n"
+    assert issues[0].review_threads[0].files == ["/frontend/header.tsx"]
+    assert issues[0].review_threads[1].comment == "latest feedback:\nUnresolved comment 3\n"
+    assert issues[0].review_threads[1].files == ["/another/file.py"]
     assert issues[0].closing_issues == ["Issue 1 body", "Issue 2 body"]
     assert issues[0].thread_ids == ["1", "3"]
 
@@ -396,12 +397,12 @@ def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
         title="Test Issue",
         body="This is a test issue",
         closing_issues=["Issue 1 fix the type"],
-        review_comments=[{"comment": "There is still a typo 'pthon' instead of 'python'", "files": []}],
+        review_threads=[ReviewThread(comment="There is still a typo 'pthon' instead of 'python'", files=[])],
     )
 
     pr_handler = PRHandler("owner", "repo", "token")
     instruction, images_urls = pr_handler.get_instruction(issue, mock_followup_prompt_template, None)
-    expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nFiles: []\n\nFollowup feedback [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nPlease fix this issue.'
+    expected_instruction = 'Issue context: [\n    "Issue 1 fix the type"\n]\n\nReview comments: None\n\nReview threads: [\n    "There is still a typo \'pthon\' instead of \'python\'"\n]\n\nFiles: []\n\nPlease fix this issue.'
 
     assert images_urls == []
     assert pr_handler.issue_type == "pr"
@@ -604,7 +605,6 @@ def test_guess_success_negative_case():
 
     with patch('litellm.completion', MagicMock(return_value=mock_completion_response)):
         success, comment_success, explanation = issue_handler.guess_success(mock_issue, mock_history, mock_llm_config)
-        print(f"success: {success}, explanation: {explanation}")
         assert issue_handler.issue_type == "issue"
         assert comment_success is None
         assert not success
@@ -639,6 +639,59 @@ def test_guess_success_invalid_output():
         assert comment_success is None
         assert not success
         assert explanation == "Failed to decode answer from LLM response: This is not a valid output"
+
+
+def test_download_pr_with_review_comments():
+    handler = PRHandler("owner", "repo", "token")
+    mock_response = MagicMock()
+    mock_response.json.side_effect = [
+        [
+            {"number": 1, "title": "PR 1", "body": "This is a pull request", "head": {"ref": "b1"}},
+        ],
+        None,
+    ]
+    mock_response.raise_for_status = MagicMock()
+
+    # Mock for GraphQL request with review comments but no threads
+    mock_graphql_response = MagicMock()
+    mock_graphql_response.json.side_effect = lambda: {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "closingIssuesReferences": {
+                        "edges": []
+                    },
+                    "reviews": {
+                        "nodes": [
+                            {"body": "Please fix this typo"},
+                            {"body": "Add more tests"}
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+    mock_graphql_response.raise_for_status = MagicMock()
+
+    with patch('requests.get', return_value=mock_response):
+        with patch('requests.post', return_value=mock_graphql_response):  
+            issues = handler.get_converted_issues()
+
+    assert len(issues) == 1
+    assert handler.issue_type == "pr"
+    assert isinstance(issues[0], GithubIssue)
+    assert issues[0].number == 1
+    assert issues[0].title == "PR 1"
+    assert issues[0].head_branch == "b1"
+    
+    # Verify review comments are set but threads are empty
+    assert len(issues[0].review_comments) == 2
+    assert issues[0].review_comments[0] == "Please fix this typo"
+    assert issues[0].review_comments[1] == "Add more tests"
+    assert not issues[0].review_threads
+    assert not issues[0].closing_issues
+    assert not issues[0].thread_ids
 
 
 if __name__ == "__main__":

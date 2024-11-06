@@ -7,7 +7,7 @@ import jinja2
 import json
 
 from openhands.events.event import Event
-from openhands_resolver.github_issue import GithubIssue
+from openhands_resolver.github_issue import GithubIssue, ReviewThread
 from openhands.core.config import LLMConfig
 from openhands.core.logger import openhands_logger as logger
 
@@ -206,7 +206,7 @@ class PRHandler(IssueHandler):
 
 
 
-    def __download_pr_metadata(self, pull_number: int):
+    def __download_pr_metadata(self, pull_number: int) -> tuple[list[str], list[str], list[ReviewThread], list[str]]:
     
         """
             Run a GraphQL query against the GitHub API for information on 
@@ -235,6 +235,12 @@ class PRHandler(IssueHandler):
                                 }
                             }
                             url
+                            reviews(first: 100) {
+                                nodes {
+                                    body
+                                    state
+                                }
+                            }
                             reviewThreads(first: 100) {
                                 edges{
                                     node{
@@ -280,37 +286,41 @@ class PRHandler(IssueHandler):
         closing_issues = pr_data.get("closingIssuesReferences", {}).get("edges", [])
         closing_issues_bodies = [issue["node"]["body"] for issue in closing_issues]
 
-        # Get unresolved review comments
-        unresolved_comments = []
-        thread_ids = []  # Store comment thread IDs; agent replies to the thread
-        review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
-        for thread in review_threads:
+        # Get review comments
+        reviews = pr_data.get("reviews", {}).get("nodes", [])
+        review_bodies = [review["body"] for review in reviews]
+
+        # Get unresolved review threads
+        review_threads = []
+        thread_ids = []  # Store thread IDs; agent replies to the thread
+        raw_review_threads = pr_data.get("reviewThreads", {}).get("edges", [])
+        for thread in raw_review_threads:
             node = thread.get("node", {})
             if not node.get("isResolved", True):  # Check if the review thread is unresolved
                 id = node.get("id")
                 thread_ids.append(id)
-                comments = node.get("comments", {}).get("nodes", [])
+                my_review_threads = node.get("comments", {}).get("nodes", [])
                 message = ""
                 files = []
-                for i, comment in enumerate(comments):
-                    if i == len(comments) - 1:  # Check if it's the last comment in the thread
-                        if len(comments) > 1:
-                            message += "---\n"  # Add "---" before the last message if there's more than one comment
-                        message += "latest feedback:\n" + comment["body"] + "\n"
+                for i, review_thread in enumerate(my_review_threads):
+                    if i == len(my_review_threads) - 1:  # Check if it's the last thread in the thread
+                        if len(my_review_threads) > 1:
+                            message += "---\n"  # Add "---" before the last message if there's more than one thread
+                        message += "latest feedback:\n" + review_thread["body"] + "\n"
                     else:
-                        message += comment["body"] + "\n"  # Add each comment in a new line
+                        message += review_thread["body"] + "\n"  # Add each thread in a new line
                     
-                    file = comment.get("path")
+                    file = review_thread.get("path")
                     if file:
                         files.append(file)
 
-                unresolved_comment = {
-                    "comment": message,
-                    "files": files
-                }
-                unresolved_comments.append(unresolved_comment)
+                unresolved_thread = ReviewThread(
+                    comment=message,
+                    files=files
+                )
+                review_threads.append(unresolved_thread)
 
-        return closing_issues_bodies, unresolved_comments, thread_ids
+        return closing_issues_bodies, review_bodies, review_threads, thread_ids
 
 
     # Override processing of downloaded issues
@@ -327,7 +337,7 @@ class PRHandler(IssueHandler):
 
             # Handle None body for PRs
             body = issue.get("body") if issue.get("body") is not None else ""
-            closing_issues, unresolved_comments, thread_ids = self.__download_pr_metadata(issue["number"])
+            closing_issues, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
             issue_details = GithubIssue(
                                 owner=self.owner,
@@ -336,7 +346,8 @@ class PRHandler(IssueHandler):
                                 title=issue["title"],
                                 body=body,
                                 closing_issues=closing_issues,
-                                review_comments=unresolved_comments,
+                                review_comments=review_comments,
+                                review_threads=review_threads,
                                 thread_ids=thread_ids,
                                 head_branch=head_branch
                             )
@@ -349,22 +360,33 @@ class PRHandler(IssueHandler):
     def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> tuple[str, list[str]]:
         """Generate instruction for the agent"""
         template = jinja2.Template(prompt_template)
-
-        if issue.closing_issues is None or issue.review_comments is None:
-            raise ValueError("issue.closing_issues or issue.review_comments is None")
-        issues_context = json.dumps(issue.closing_issues, indent=4)
-        comments = [review_comment["comment"] for review_comment in issue.review_comments]
-        comment_files = []
-        for review_comment in issue.review_comments:
-            comment_files.extend(review_comment["files"])
-        comment_chain = json.dumps(comments, indent=4)
-        files = json.dumps(comment_files, indent=4)
-
         images = []
-        images.extend(self._extract_image_urls(issues_context))
-        images.extend(self._extract_image_urls(comment_chain))
 
-        instruction = template.render(issues=issues_context, files=files, body=comment_chain, repo_instruction=repo_instruction)
+        issues_str = None
+        if issue.closing_issues:
+            issues_str = json.dumps(issue.closing_issues, indent=4) 
+            images.extend(self._extract_image_urls(issues_str))
+
+        # Handle PRs with review comments
+        review_comments_str = None
+        if issue.review_comments:
+            review_comments_str = json.dumps(issue.review_comments, indent=4)
+            images.extend(self._extract_image_urls(review_comments_str))
+
+        # Handle PRs with file-specific review comments
+        review_thread_str = None
+        review_thread_file_str = None
+        if issue.review_threads:
+            review_threads = [review_thread.comment for review_thread in issue.review_threads]
+            review_thread_files = []
+            for review_thread in issue.review_threads:
+                review_thread_files.extend(review_thread.files)
+            review_thread_str = json.dumps(review_threads, indent=4)
+            review_thread_file_str = json.dumps(review_thread_files, indent=4)
+            images.extend(self._extract_image_urls(review_thread_str))
+        
+
+        instruction = template.render(issues=issues_str, review_comments=review_comments_str, review_threads=review_thread_str, files=review_thread_file_str, repo_instruction=repo_instruction)
         return instruction, images
     
 
@@ -377,10 +399,9 @@ class PRHandler(IssueHandler):
         explanation_list = []
 
         # Handle PRs with file-specific review comments
-        if issue.review_comments:
-            for review_comment in issue.review_comments:
-                formatted_comment = json.dumps(review_comment["comment"], indent=4)
-                files_context = json.dumps(review_comment["files"], indent=4)
+        if issue.review_threads is not None:
+            for review_thread in issue.review_threads:
+                files_context = json.dumps(review_thread.files, indent=4)
 
                 prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. If the feedback is addressed to a specific code file, then the file locations will be provided as well. Determine if the feedback has been successfully resolved.
                 
@@ -388,7 +409,7 @@ class PRHandler(IssueHandler):
                 {issues_context}
 
                 Feedback:
-                {formatted_comment}
+                {review_thread.comment}
 
                 Files locations:
                 {files_context}
