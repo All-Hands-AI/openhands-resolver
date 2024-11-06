@@ -102,6 +102,10 @@ def test_pr_title_with_quotes(monkeypatch):
         print("Initializing git repo...")
         subprocess.run(["git", "init", temp_dir], check=True)
         
+        # Add these lines to configure git
+        subprocess.run(["git", "-C", temp_dir, "config", "user.name", "Test User"], check=True)
+        subprocess.run(["git", "-C", temp_dir, "config", "user.email", "test@example.com"], check=True)
+        
         # Create a test file and add it to git
         test_file = os.path.join(temp_dir, "test.txt")
         with open(test_file, "w") as f:
