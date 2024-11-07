@@ -300,6 +300,20 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
             "expected_success": False,
             "expected_error": "Agent failed to run or crashed",
             "expected_explanation": "Agent failed to run"
+        },
+        {
+            "name": "json_decode_error",
+            "run_controller_return": MagicMock(
+                history=[NullObservation(content="")],
+                metrics=MagicMock(get=MagicMock(return_value={"test_result": "passed"})),
+                last_error=None,
+            ),
+            "run_controller_raises": None,
+            "expected_success": True,
+            "expected_error": None,
+            "expected_explanation": "Non-JSON explanation",
+            "is_pr": True,
+            "comment_success": [True, False]  # To trigger the PR success logging code path
         }
     ]
 
@@ -320,9 +334,13 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
             mock_run_controller.side_effect = None
         
         mock_complete_runtime.return_value = {"git_patch": "test patch"}
-        handler_instance.guess_success.return_value = (test_case["expected_success"], None, test_case["expected_explanation"])
+        handler_instance.guess_success.return_value = (
+            test_case["expected_success"], 
+            test_case.get("comment_success", None), 
+            test_case["expected_explanation"]
+        )
         handler_instance.get_instruction.return_value = ("Test instruction", [])
-        handler_instance.issue_type = "issue"
+        handler_instance.issue_type = "pr" if test_case.get("is_pr", False) else "issue"
 
         with patch(
             "openhands_resolver.resolve_issue.create_runtime", mock_create_runtime
@@ -350,7 +368,8 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
             )
 
             # Assert the result
-            assert handler_instance.issue_type == "issue"
+            expected_issue_type = "pr" if test_case.get("is_pr", False) else "issue"
+            assert handler_instance.issue_type == expected_issue_type
             assert isinstance(result, ResolverOutput)
             assert result.issue == issue
             assert result.base_commit == base_commit
