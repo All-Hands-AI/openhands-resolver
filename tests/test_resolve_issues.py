@@ -125,8 +125,8 @@ def test_download_issues_from_github():
 
 def test_download_pr_from_github():
     handler = PRHandler("owner", "repo", "token")
-    mock_response = MagicMock()
-    mock_response.json.side_effect = [
+    mock_pr_response = MagicMock()
+    mock_pr_response.json.side_effect = [
         [
             {"number": 1, "title": "PR 1", "body": "This is a pull request", "head": {"ref": "b1"}},
             {"number": 2, "title": "My PR", "body": "This is another pull request", "head": {"ref": "b2"}},
@@ -134,7 +134,12 @@ def test_download_pr_from_github():
         ],
         None,
     ]
-    mock_response.raise_for_status = MagicMock()
+    mock_pr_response.raise_for_status = MagicMock()
+
+    # Mock for PR comments response
+    mock_comments_response = MagicMock()
+    mock_comments_response.json.return_value = []  # No PR comments
+    mock_comments_response.raise_for_status = MagicMock()
 
     # Mock for GraphQL request (for download_pr_metadata)
     mock_graphql_response = MagicMock()
@@ -193,7 +198,12 @@ def test_download_pr_from_github():
 
     mock_graphql_response.raise_for_status = MagicMock()
 
-    with patch('requests.get', return_value=mock_response):
+    def get_mock_response(url, *args, **kwargs):
+        if "/comments" in url:
+            return mock_comments_response
+        return mock_pr_response
+
+    with patch('requests.get', side_effect=get_mock_response):
         with patch('requests.post', return_value=mock_graphql_response):  
             issues = handler.get_converted_issues()
 
@@ -647,14 +657,19 @@ def test_guess_success_invalid_output():
 
 def test_download_pr_with_review_comments():
     handler = PRHandler("owner", "repo", "token")
-    mock_response = MagicMock()
-    mock_response.json.side_effect = [
+    mock_pr_response = MagicMock()
+    mock_pr_response.json.side_effect = [
         [
             {"number": 1, "title": "PR 1", "body": "This is a pull request", "head": {"ref": "b1"}},
         ],
         None,
     ]
-    mock_response.raise_for_status = MagicMock()
+    mock_pr_response.raise_for_status = MagicMock()
+
+    # Mock for PR comments response
+    mock_comments_response = MagicMock()
+    mock_comments_response.json.return_value = []  # No PR comments
+    mock_comments_response.raise_for_status = MagicMock()
 
     # Mock for GraphQL request with review comments but no threads
     mock_graphql_response = MagicMock()
@@ -678,7 +693,12 @@ def test_download_pr_with_review_comments():
 
     mock_graphql_response.raise_for_status = MagicMock()
 
-    with patch('requests.get', return_value=mock_response):
+    def get_mock_response(url, *args, **kwargs):
+        if "/comments" in url:
+            return mock_comments_response
+        return mock_pr_response
+
+    with patch('requests.get', side_effect=get_mock_response):
         with patch('requests.post', return_value=mock_graphql_response):  
             issues = handler.get_converted_issues()
 
