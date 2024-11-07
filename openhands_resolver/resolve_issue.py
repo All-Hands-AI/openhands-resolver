@@ -250,10 +250,16 @@ async def process_issue(
 
         if issue_handler.issue_type == "pr" and comment_success:
             success_log = "I have updated the PR and resolved some of the issues that were cited in the pull request review. Specifically, I identified the following revision requests, and all the ones that I think I successfully resolved are checked off. All the unchecked ones I was not able to resolve, so manual intervention may be required:\n"
-            for success_indicator, explanation in zip(comment_success, json.loads(success_explanation)):
-                    status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
-                    bullet_point = colored("-", "yellow")
-                    success_log += f"\n{bullet_point} {status}: {explanation}"
+            try:
+                explanations = json.loads(success_explanation)
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse success_explanation as JSON: {success_explanation}")
+                explanations = [str(success_explanation)]  # Use raw string as fallback
+            
+            for success_indicator, explanation in zip(comment_success, explanations):
+                status = colored("[X]", "red") if success_indicator else colored("[ ]", "red")
+                bullet_point = colored("-", "yellow")
+                success_log += f"\n{bullet_point} {status}: {explanation}"
             logger.info(success_log)
         last_error = state.last_error if state.last_error else None
 
