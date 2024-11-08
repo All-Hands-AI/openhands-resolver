@@ -415,6 +415,68 @@ class PRHandler(IssueHandler):
         return instruction, images
     
 
+    def _check_feedback_with_llm(self, prompt: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Helper function to check feedback with LLM and parse response"""
+        response = litellm.completion(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+        )
+        
+        answer = response.choices[0].message.content.strip()
+        pattern = r'--- success\n*(true|false)\n*--- explanation*\n((?:.|\n)*)'
+        match = re.search(pattern, answer)
+        if match:
+            return match.group(1).lower() == 'true', match.group(2).strip()
+        return False, f"Failed to decode answer from LLM response: {answer}"
+
+    def _check_review_thread(self, review_thread: ReviewThread, issues_context: str, last_message: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Check if a review thread's feedback has been addressed"""
+        files_context = json.dumps(review_thread.files, indent=4)
+        
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-feedback-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        
+        prompt = template.render(
+            issue_context=issues_context,
+            feedback=review_thread.comment,
+            files_context=files_context,
+            last_message=last_message,
+        )
+        
+        return self._check_feedback_with_llm(prompt, llm_config)
+
+    def _check_thread_comments(self, thread_comments: list[str], issues_context: str, last_message: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Check if thread comments feedback has been addressed"""
+        thread_context = "\n---\n".join(thread_comments)
+        
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-thread-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        
+        prompt = template.render(
+            issue_context=issues_context,
+            thread_context=thread_context,
+            last_message=last_message,
+        )
+        
+        return self._check_feedback_with_llm(prompt, llm_config)
+
+    def _check_review_comments(self, review_comments: list[str], issues_context: str, last_message: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Check if review comments feedback has been addressed"""
+        review_context = "\n---\n".join(review_comments)
+        
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-review-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        
+        prompt = template.render(
+            issue_context=issues_context,
+            review_context=review_context,
+            last_message=last_message,
+        )
+        
+        return self._check_feedback_with_llm(prompt, llm_config)
+
     def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
         
@@ -426,87 +488,19 @@ class PRHandler(IssueHandler):
         # Handle PRs with file-specific review comments
         if issue.review_threads is not None:
             for review_thread in issue.review_threads:
-                files_context = json.dumps(review_thread.files, indent=4)
-
-                with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-feedback-check.jinja"), 'r') as f:
-                    template = jinja2.Template(f.read())
-                
-                prompt = template.render(
-                    issue_context=issues_context,
-                    feedback=review_thread.comment,
-                    files_context=files_context,
-                    last_message=last_message,
-                )
-
-                response = litellm.completion(
-                    model=llm_config.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    api_key=llm_config.api_key,
-                    base_url=llm_config.base_url,
-                )
-            
-                answer = response.choices[0].message.content.strip()
-                pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-                match = re.search(pattern, answer)
-                if match:
-                    success_list.append(match.group(1).lower() == 'true')
-                    explanation_list.append(match.group(2))
+                success, explanation = self._check_review_thread(review_thread, issues_context, last_message, llm_config)
+                success_list.append(success)
+                explanation_list.append(explanation)
         # Handle PRs with only thread comments (no file-specific review comments)
         elif issue.thread_comments:
-            thread_context = "\n---\n".join(issue.thread_comments)
-            with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-thread-check.jinja"), 'r') as f:
-                template = jinja2.Template(f.read())
-            
-            prompt = template.render(
-                issue_context=issues_context,
-                thread_context=thread_context,
-                last_message=last_message,
-            )
-
-            response = litellm.completion(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=llm_config.api_key,
-                base_url=llm_config.base_url,
-            )
-        
-            answer = response.choices[0].message.content.strip()
-            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-            match = re.search(pattern, answer)
-            if match:
-                success_list.append(match.group(1).lower() == 'true')
-                explanation_list.append(match.group(2))
-            else:
-                success_list.append(False)
-                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+            success, explanation = self._check_thread_comments(issue.thread_comments, issues_context, last_message, llm_config)
+            success_list.append(success)
+            explanation_list.append(explanation)
         elif issue.review_comments:
             # Handle PRs with only review comments (no file-specific review comments or thread comments)
-            review_context = "\n---\n".join(issue.review_comments)
-            with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-review-check.jinja"), 'r') as f:
-                template = jinja2.Template(f.read())
-            
-            prompt = template.render(
-                issue_context=issues_context,
-                review_context=review_context,
-                last_message=last_message,
-            )
-
-            response = litellm.completion(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=llm_config.api_key,
-                base_url=llm_config.base_url,
-            )
-        
-            answer = response.choices[0].message.content.strip()
-            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-            match = re.search(pattern, answer)
-            if match:
-                success_list.append(match.group(1).lower() == 'true')
-                explanation_list.append(match.group(2))
-            else:
-                success_list.append(False)
-                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+            success, explanation = self._check_review_comments(issue.review_comments, issues_context, last_message, llm_config)
+            success_list.append(success)
+            explanation_list.append(explanation)
         else:
             # No review comments, thread comments, or file-level review comments found
             return False, None, "No feedback was found to process"
