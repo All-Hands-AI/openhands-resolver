@@ -41,11 +41,27 @@ def apply_patch(repo_dir: str, patch: str) -> None:
                 print(f"Deleted file: {old_path}")
             continue
 
-        # Handle file rename
+         # Handle file rename
         if old_path and new_path and "rename from" in patch:
+            # Create parent directory of new path
             os.makedirs(os.path.dirname(new_path), exist_ok=True)
-            shutil.copy2(old_path, new_path)
-            os.remove(old_path)
+            try:
+                # Try to move the file directly
+                shutil.move(old_path, new_path)
+            except shutil.SameFileError:
+                # If it's the same file (can happen with directory renames), copy first then remove
+                shutil.copy2(old_path, new_path)
+                os.remove(old_path)
+            
+            # Try to remove empty parent directories
+            old_dir = os.path.dirname(old_path)
+            while old_dir and old_dir.startswith(repo_dir):
+                try:
+                    os.rmdir(old_dir)
+                    old_dir = os.path.dirname(old_dir)
+                except OSError:
+                    # Directory not empty or other error, stop trying to remove parents
+                    break
             continue
 
         if old_path:
