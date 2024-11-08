@@ -188,7 +188,7 @@ class IssueHandler(IssueHandlerInterface):
         )
         
         answer = response.choices[0].message.content.strip()
-        pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+        pattern = r'--- success\n*(true|false)\n*--- explanation*\n([\s\S]*)'
         match = re.search(pattern, answer)
         if match:
             return match.group(1).lower() == 'true', None, match.group(2)
@@ -477,7 +477,7 @@ class PRHandler(IssueHandler):
                 )
             
                 answer = response.choices[0].message.content.strip()
-                pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+                pattern = r'--- success\n*(true|false)\n*--- explanation*\n([\s\S]*)'
                 match = re.search(pattern, answer)
                 if match:
                     success_list.append(match.group(1).lower() == 'true')
@@ -516,7 +516,7 @@ class PRHandler(IssueHandler):
             )
         
             answer = response.choices[0].message.content.strip()
-            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+            pattern = r'--- success\n*(true|false)\n*--- explanation*\n([\s\S]*)'
             match = re.search(pattern, answer)
             if match:
                 success_list.append(match.group(1).lower() == 'true')
