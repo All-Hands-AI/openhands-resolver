@@ -431,7 +431,12 @@ class PRHandler(IssueHandler):
                 with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-feedback-check.jinja"), 'r') as f:
                     template = jinja2.Template(f.read())
                 
-                prompt = template.render(issue_context=issues_context, last_message=last_message, files_context=files_context)
+                prompt = template.render(
+                    issue_context=issues_context,
+                    feedback=review_thread.comment,
+                    files_context=files_context,
+                    last_message=last_message,
+                )
 
                 response = litellm.completion(
                     model=llm_config.model,
@@ -452,7 +457,11 @@ class PRHandler(IssueHandler):
             with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-thread-check.jinja"), 'r') as f:
                 template = jinja2.Template(f.read())
             
-            prompt = template.render(issue_context=issues_context, last_message=last_message, thread_context=thread_context)
+            prompt = template.render(
+                issue_context=issues_context,
+                thread_context=thread_context,
+                last_message=last_message,
+            )
 
             response = litellm.completion(
                 model=llm_config.model,
@@ -476,7 +485,11 @@ class PRHandler(IssueHandler):
             with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-review-check.jinja"), 'r') as f:
                 template = jinja2.Template(f.read())
             
-            prompt = template.render(issue_context=issues_context, last_message=last_message, review_context=review_context)
+            prompt = template.render(
+                issue_context=issues_context,
+                review_context=review_context,
+                last_message=last_message,
+            )
 
             response = litellm.completion(
                 model=llm_config.model,
