@@ -173,7 +173,7 @@ class IssueHandler(IssueHandlerInterface):
         )
         
         answer = response.choices[0].message.content.strip()
-        pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
+        pattern = r'--- success\n*(true|false)\n*--- explanation*\n((?:.|\n)*)'
         match = re.search(pattern, answer)
         if match:
             return match.group(1).lower() == 'true', None, match.group(2)
