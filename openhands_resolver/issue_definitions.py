@@ -176,9 +176,7 @@ class IssueHandler(IssueHandlerInterface):
         true/false
 
         --- explanation
-        - Change 1
-        - Change 2
-        - ...
+        ...
         """
 
         response = litellm.completion(
