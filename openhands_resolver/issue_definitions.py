@@ -1,4 +1,5 @@
 import re
+import os
 from abc import ABC, abstractmethod
 from typing import ClassVar, Any
 import requests
@@ -159,25 +160,9 @@ class IssueHandler(IssueHandlerInterface):
         if issue.thread_comments:
             issue_context += "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
             
-        prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
-
-        Issue description:
-        {issue_context}
-
-        Last message from AI agent:
-        {last_message}
-
-        (1) has the issue been successfully resolved?
-        (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
-
-        Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-        --- success
-        true/false
-
-        --- explanation
-        ...
-        """
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/issue-success-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        prompt = template.render(issue_context=issue_context, last_message=last_message)
 
         response = litellm.completion(
 
@@ -188,7 +173,7 @@ class IssueHandler(IssueHandlerInterface):
         )
         
         answer = response.choices[0].message.content.strip()
-        pattern = r'--- success\n*(true|false)\n*--- explanation*\n([\s\S]*)'
+        pattern = r'--- success\n*(true|false)\n*--- explanation*\n((?:.|\n)*)'
         match = re.search(pattern, answer)
         if match:
             return match.group(1).lower() == 'true', None, match.group(2)
@@ -430,6 +415,68 @@ class PRHandler(IssueHandler):
         return instruction, images
     
 
+    def _check_feedback_with_llm(self, prompt: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Helper function to check feedback with LLM and parse response"""
+        response = litellm.completion(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+        )
+        
+        answer = response.choices[0].message.content.strip()
+        pattern = r'--- success\n*(true|false)\n*--- explanation*\n((?:.|\n)*)'
+        match = re.search(pattern, answer)
+        if match:
+            return match.group(1).lower() == 'true', match.group(2).strip()
+        return False, f"Failed to decode answer from LLM response: {answer}"
+
+    def _check_review_thread(self, review_thread: ReviewThread, issues_context: str, last_message: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Check if a review thread's feedback has been addressed"""
+        files_context = json.dumps(review_thread.files, indent=4)
+        
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-feedback-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        
+        prompt = template.render(
+            issue_context=issues_context,
+            feedback=review_thread.comment,
+            files_context=files_context,
+            last_message=last_message,
+        )
+        
+        return self._check_feedback_with_llm(prompt, llm_config)
+
+    def _check_thread_comments(self, thread_comments: list[str], issues_context: str, last_message: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Check if thread comments feedback has been addressed"""
+        thread_context = "\n---\n".join(thread_comments)
+        
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-thread-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        
+        prompt = template.render(
+            issue_context=issues_context,
+            thread_context=thread_context,
+            last_message=last_message,
+        )
+        
+        return self._check_feedback_with_llm(prompt, llm_config)
+
+    def _check_review_comments(self, review_comments: list[str], issues_context: str, last_message: str, llm_config: LLMConfig) -> tuple[bool, str]:
+        """Check if review comments feedback has been addressed"""
+        review_context = "\n---\n".join(review_comments)
+        
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-review-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        
+        prompt = template.render(
+            issue_context=issues_context,
+            review_context=review_context,
+            last_message=last_message,
+        )
+        
+        return self._check_feedback_with_llm(prompt, llm_config)
+
     def guess_success(self, issue: GithubIssue, history: list[Event], llm_config: LLMConfig) -> tuple[bool, None | list[bool], str]:
         """Guess if the issue is fixed based on the history and the issue description."""
         
@@ -441,131 +488,19 @@ class PRHandler(IssueHandler):
         # Handle PRs with file-specific review comments
         if issue.review_threads is not None:
             for review_thread in issue.review_threads:
-                files_context = json.dumps(review_thread.files, indent=4)
-
-                prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. If the feedback is addressed to a specific code file, then the file locations will be provided as well. Determine if the feedback has been successfully resolved.
-                
-                Issue descriptions:
-                {issues_context}
-
-                Feedback:
-                {review_thread.comment}
-
-                Files locations:
-                {files_context}
-
-                Last message from AI agent:
-                {last_message}
-
-                (1) has the feedback been successfully incorporated?
-                (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-                Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-                --- success
-                true/false
-
-                --- explanation
-                ...
-                """
-
-                response = litellm.completion(
-                    model=llm_config.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    api_key=llm_config.api_key,
-                    base_url=llm_config.base_url,
-                )
-            
-                answer = response.choices[0].message.content.strip()
-                pattern = r'--- success\n*(true|false)\n*--- explanation*\n([\s\S]*)'
-                match = re.search(pattern, answer)
-                if match:
-                    success_list.append(match.group(1).lower() == 'true')
-                    explanation_list.append(match.group(2))
+                success, explanation = self._check_review_thread(review_thread, issues_context, last_message, llm_config)
+                success_list.append(success)
+                explanation_list.append(explanation)
         # Handle PRs with only thread comments (no file-specific review comments)
         elif issue.thread_comments:
-            thread_context = "\n---\n".join(issue.thread_comments)
-            prompt = f"""You are given one or more issue descriptions, the PR thread comments, and the last message from an AI agent attempting to address the feedback. Determine if the feedback has been successfully resolved.
-            
-            Issue descriptions:
-            {issues_context}
-
-            PR Thread Comments:
-            {thread_context}
-
-            Last message from AI agent:
-            {last_message}
-
-            (1) has the feedback been successfully incorporated?
-            (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-            --- success
-            true/false
-
-            --- explanation
-            ...
-            """
-
-            response = litellm.completion(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=llm_config.api_key,
-                base_url=llm_config.base_url,
-            )
-        
-            answer = response.choices[0].message.content.strip()
-            pattern = r'--- success\n*(true|false)\n*--- explanation*\n([\s\S]*)'
-            match = re.search(pattern, answer)
-            if match:
-                success_list.append(match.group(1).lower() == 'true')
-                explanation_list.append(match.group(2))
-            else:
-                success_list.append(False)
-                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+            success, explanation = self._check_thread_comments(issue.thread_comments, issues_context, last_message, llm_config)
+            success_list.append(success)
+            explanation_list.append(explanation)
         elif issue.review_comments:
             # Handle PRs with only review comments (no file-specific review comments or thread comments)
-            review_context = "\n---\n".join(issue.review_comments)
-            prompt = f"""You are given one or more issue descriptions, the PR review comments, and the last message from an AI agent attempting to address the feedback. Determine if the feedback has been successfully resolved.
-            
-            Issue descriptions:
-            {issues_context}
-
-            PR Review Comments:
-            {review_context}
-
-            Last message from AI agent:
-            {last_message}
-
-            (1) has the feedback been successfully incorporated?
-            (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-            --- success
-            true/false
-
-            --- explanation
-            ...
-            """
-
-            response = litellm.completion(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=llm_config.api_key,
-                base_url=llm_config.base_url,
-            )
-        
-            answer = response.choices[0].message.content.strip()
-            pattern = r'--- success\n*(true|false)\n*--- explanation*\n(.*)'
-            match = re.search(pattern, answer)
-            if match:
-                success_list.append(match.group(1).lower() == 'true')
-                explanation_list.append(match.group(2))
-            else:
-                success_list.append(False)
-                explanation_list.append(f"Failed to decode answer from LLM response: {answer}")
+            success, explanation = self._check_review_comments(issue.review_comments, issues_context, last_message, llm_config)
+            success_list.append(success)
+            explanation_list.append(explanation)
         else:
             # No review comments, thread comments, or file-level review comments found
             return False, None, "No feedback was found to process"
