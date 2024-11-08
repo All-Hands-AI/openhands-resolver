@@ -182,7 +182,7 @@ async def process_issue(
 
     config = AppConfig(
         default_agent="CodeActAgent",
-        runtime='eventstream',
+        runtime=os.environ.get('RUNTIME', 'eventstream'),
         max_budget_per_task=4,
         max_iterations=max_iterations,
         sandbox=SandboxConfig(
@@ -191,6 +191,7 @@ async def process_issue(
             use_host_network=False,
             # large enough timeout, since some testcases take very long to run
             timeout=300,
+            api_key=os.environ.get('ALLHANDS_API_KEY', None),
         ),
         # do not mount workspace
         workspace_base=workspace_base,

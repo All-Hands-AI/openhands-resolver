@@ -18,6 +18,10 @@ on:
         required: true
       PAT_USERNAME:
         required: true
+      RUNTIME:
+        required: false
+      ALLHANDS_API_KEY:
+        required: false
 
   issues:
     types: [labeled]
@@ -113,6 +117,8 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          RUNTIME: ${{ secrets.RUNTIME }}
+          ALLHANDS_API_KEY: ${{ secrets.ALLHANDS_API_KEY }}
           PYTHONPATH: ""
         run: |
           cd /tmp && python -m openhands_resolver.resolve_issue \
@@ -136,6 +142,8 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          RUNTIME: ${{ secrets.RUNTIME }}
+          ALLHANDS_API_KEY: ${{ secrets.ALLHANDS_API_KEY }}
           PYTHONPATH: ""
         run: |
           if [ "${{ steps.check_result.outputs.RESOLUTION_SUCCESS }}" == "true" ]; then
