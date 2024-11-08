@@ -1,4 +1,3 @@
-import pytest
 from openhands_resolver.issue_definitions import IssueHandler
 from openhands_resolver.github_issue import GithubIssue
 from openhands.events.action.message import MessageAction
