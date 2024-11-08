@@ -168,7 +168,7 @@ class IssueHandler(IssueHandlerInterface):
         {last_message}
 
         (1) has the issue been successfully resolved?
-        (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. The explanation should be a bullet-point list of changes made, with each point starting with "- ". If the issue has not been resolved, please provide an explanation of why.
+        (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
 
         Answer in exactly the format below, with only true or false for success, and an explanation of the result.
 
