@@ -324,6 +324,29 @@ class PRHandler(IssueHandler):
 
 
     # Override processing of downloaded issues
+    def _get_pr_comments(self, pr_number: int) -> list[str] | None:
+        """Download comments for a specific pull request from Github."""
+        url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{pr_number}/comments"
+        headers = {
+            "Authorization": f"token {self.token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+        params = {"per_page": 100, "page": 1}
+        all_comments = []
+
+        while True:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            comments = response.json()
+
+            if not comments:
+                break
+
+            all_comments.extend([comment["body"] for comment in comments])
+            params["page"] += 1
+
+        return all_comments if all_comments else None
+
     def get_converted_issues(self) -> list[GithubIssue]:
         all_issues = self._download_issues_from_github()
         converted_issues = []
@@ -339,6 +362,10 @@ class PRHandler(IssueHandler):
             body = issue.get("body") if issue.get("body") is not None else ""
             closing_issues, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"])
             head_branch = issue["head"]["ref"]
+            
+            # Get PR thread comments
+            thread_comments = self._get_pr_comments(issue["number"])
+            
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
@@ -349,7 +376,8 @@ class PRHandler(IssueHandler):
                                 review_comments=review_comments,
                                 review_threads=review_threads,
                                 thread_ids=thread_ids,
-                                head_branch=head_branch
+                                head_branch=head_branch,
+                                thread_comments=thread_comments
                             )
             
             converted_issues.append(issue_details)
@@ -385,8 +413,20 @@ class PRHandler(IssueHandler):
             review_thread_file_str = json.dumps(review_thread_files, indent=4)
             images.extend(self._extract_image_urls(review_thread_str))
         
+        # Format thread comments if they exist
+        thread_context = ""
+        if issue.thread_comments:
+            thread_context = "\n\nPR Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
+            images.extend(self._extract_image_urls(thread_context))
 
-        instruction = template.render(issues=issues_str, review_comments=review_comments_str, review_threads=review_thread_str, files=review_thread_file_str, repo_instruction=repo_instruction)
+        instruction = template.render(
+            issues=issues_str, 
+            review_comments=review_comments_str, 
+            review_threads=review_thread_str, 
+            files=review_thread_file_str, 
+            thread_context=thread_context,
+            repo_instruction=repo_instruction
+        )
         return instruction, images
     
 
