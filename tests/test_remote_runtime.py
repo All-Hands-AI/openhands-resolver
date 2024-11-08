@@ -1,6 +1,5 @@
 import os
 import pytest
-from openhands.core.config import AppConfig, SandboxConfig
 from openhands_resolver.resolve_issue import process_issue
 from openhands_resolver.github_issue import GithubIssue
 from openhands.core.config import LLMConfig
@@ -57,7 +56,7 @@ async def test_remote_runtime_config(mock_env_vars, mock_issue, tmp_path):
             return True, None, "test explanation"
 
     try:
-        output = await process_issue(
+        await process_issue(
             mock_issue,
             "test-commit",
             1,
