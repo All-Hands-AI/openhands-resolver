@@ -1,4 +1,5 @@
 import re
+import os
 from abc import ABC, abstractmethod
 from typing import ClassVar, Any
 import requests
@@ -159,25 +160,9 @@ class IssueHandler(IssueHandlerInterface):
         if issue.thread_comments:
             issue_context += "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
             
-        prompt = f"""Given the following issue description and the last message from an AI agent attempting to fix it, determine if the issue has been successfully resolved.
-
-        Issue description:
-        {issue_context}
-
-        Last message from AI agent:
-        {last_message}
-
-        (1) has the issue been successfully resolved?
-        (2) If the issue has been resolved, please provide an explanation of what was done in the PR that can be sent to a human reviewer on github. If the issue has not been resolved, please provide an explanation of why.
-
-        Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-        --- success
-        true/false
-
-        --- explanation
-        ...
-        """
+        with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/issue-success-check.jinja"), 'r') as f:
+            template = jinja2.Template(f.read())
+        prompt = template.render(issue_context=issue_context, last_message=last_message)
 
         response = litellm.completion(
 
@@ -443,31 +428,10 @@ class PRHandler(IssueHandler):
             for review_thread in issue.review_threads:
                 files_context = json.dumps(review_thread.files, indent=4)
 
-                prompt = f"""You are given one or more issue descriptions, a piece of feedback to resolve the issues, and the last message from an AI agent attempting to incorporate the feedback. If the feedback is addressed to a specific code file, then the file locations will be provided as well. Determine if the feedback has been successfully resolved.
+                with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-feedback-check.jinja"), 'r') as f:
+                    template = jinja2.Template(f.read())
                 
-                Issue descriptions:
-                {issues_context}
-
-                Feedback:
-                {review_thread.comment}
-
-                Files locations:
-                {files_context}
-
-                Last message from AI agent:
-                {last_message}
-
-                (1) has the feedback been successfully incorporated?
-                (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-                Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-                --- success
-                true/false
-
-                --- explanation
-                ...
-                """
+                prompt = template.render(issue_context=issues_context, last_message=last_message)
 
                 response = litellm.completion(
                     model=llm_config.model,
@@ -485,28 +449,10 @@ class PRHandler(IssueHandler):
         # Handle PRs with only thread comments (no file-specific review comments)
         elif issue.thread_comments:
             thread_context = "\n---\n".join(issue.thread_comments)
-            prompt = f"""You are given one or more issue descriptions, the PR thread comments, and the last message from an AI agent attempting to address the feedback. Determine if the feedback has been successfully resolved.
+            with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-thread-check.jinja"), 'r') as f:
+                template = jinja2.Template(f.read())
             
-            Issue descriptions:
-            {issues_context}
-
-            PR Thread Comments:
-            {thread_context}
-
-            Last message from AI agent:
-            {last_message}
-
-            (1) has the feedback been successfully incorporated?
-            (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-            --- success
-            true/false
-
-            --- explanation
-            ...
-            """
+            prompt = template.render(issue_context=issues_context, last_message=last_message)
 
             response = litellm.completion(
                 model=llm_config.model,
@@ -527,28 +473,10 @@ class PRHandler(IssueHandler):
         elif issue.review_comments:
             # Handle PRs with only review comments (no file-specific review comments or thread comments)
             review_context = "\n---\n".join(issue.review_comments)
-            prompt = f"""You are given one or more issue descriptions, the PR review comments, and the last message from an AI agent attempting to address the feedback. Determine if the feedback has been successfully resolved.
+            with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-review-check.jinja"), 'r') as f:
+                template = jinja2.Template(f.read())
             
-            Issue descriptions:
-            {issues_context}
-
-            PR Review Comments:
-            {review_context}
-
-            Last message from AI agent:
-            {last_message}
-
-            (1) has the feedback been successfully incorporated?
-            (2) If the feedback has been incorporated, please provide an explanation of what was done that can be sent to a human reviewer on github. If the feedback has not been resolved, please provide an explanation of why.
-
-            Answer in exactly the format below, with only true or false for success, and an explanation of the result.
-
-            --- success
-            true/false
-
-            --- explanation
-            ...
-            """
+            prompt = template.render(issue_context=issues_context, last_message=last_message)
 
             response = litellm.completion(
                 model=llm_config.model,

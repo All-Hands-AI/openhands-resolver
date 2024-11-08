@@ -3,6 +3,7 @@ import os
 import shutil
 
 import litellm
+import jinja2
 from openhands_resolver.github_issue import GithubIssue
 from openhands_resolver.io_utils import (
     load_all_resolver_outputs,
@@ -359,7 +360,9 @@ def update_existing_pull_request(
 
                 # Summarize with LLM if provided
                 if llm_config is not None:
-                    prompt = f"Please create a concise overview of the following changes, commenting on whether all issues have been successfully resolved or if there are still issues remaining:\n\n{comment_message}"
+                    with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-changes-summary.jinja"), 'r') as f:
+                        template = jinja2.Template(f.read())
+                    prompt = template.render(comment_message=comment_message)
                     response = litellm.completion(
                         model=llm_config.model,
                         messages=[{"role": "user", "content": prompt}],
