@@ -240,6 +240,72 @@ def test_initialize_repo(mock_output_dir):
 @patch("openhands_resolver.send_pull_request.reply_to_comment")
 @patch("requests.post")
 @patch("subprocess.run")
+def test_update_existing_pull_request_json_error(
+    mock_subprocess_run, mock_requests_post, mock_reply_to_comment
+):
+    # Arrange: Set up test data
+    github_issue = GithubIssue(
+        owner="test-owner",
+        repo="test-repo",
+        number=1,
+        title="Test PR",
+        body="This is a test PR",
+        thread_ids=None,
+        head_branch="test-branch"
+    )
+    github_token = "test-token"
+    github_username = "test-user"
+    patch_dir = "/path/to/patch"
+    # Invalid JSON string to trigger error handling
+    additional_message = '["Invalid JSON'
+
+    # Mock the subprocess.run call for git push
+    mock_subprocess_run.return_value = MagicMock(returncode=0)
+
+    # Mock the requests.post call for adding a PR comment
+    mock_requests_post.return_value.status_code = 201
+
+    # Act: Call the function with invalid JSON
+    result = update_existing_pull_request(
+        github_issue,
+        github_token,
+        github_username,
+        patch_dir,
+        None,  # No LLM config needed for this test
+        comment_message=None,
+        additional_message=additional_message,
+    )
+
+    # Assert: Check if the git push command was executed
+    push_command = (
+        f"git -C {patch_dir} push "
+        f"https://{github_username}:{github_token}@github.com/"
+        f"{github_issue.owner}/{github_issue.repo}.git {github_issue.head_branch}"
+    )
+    mock_subprocess_run.assert_called_once_with(push_command, shell=True, capture_output=True, text=True)
+
+    # Assert: Check if the fallback comment was posted to the PR
+    comment_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}/issues/{github_issue.number}/comments"
+    expected_comment = "OpenHands has updated this pull request with new changes. Please review the changes and provide feedback if needed."
+    mock_requests_post.assert_called_once_with(
+        comment_url,
+        headers={
+            "Authorization": f"token {github_token}",
+            "Accept": "application/vnd.github.v3+json",
+        },
+        json={"body": expected_comment},
+    )
+
+    # Assert: Check that reply_to_comment was not called since thread_ids is None
+    mock_reply_to_comment.assert_not_called()
+
+    # Assert: Check the returned PR URL
+    assert result == f"https://github.com/{github_issue.owner}/{github_issue.repo}/pull/{github_issue.number}"
+
+
+@patch("openhands_resolver.send_pull_request.reply_to_comment")
+@patch("requests.post")
+@patch("subprocess.run")
 def test_update_existing_pull_request(
     mock_subprocess_run, mock_requests_post, mock_reply_to_comment
 ):

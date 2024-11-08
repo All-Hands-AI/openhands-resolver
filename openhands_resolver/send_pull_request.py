@@ -388,7 +388,8 @@ def update_existing_pull_request(
                     comment_message = response.choices[0].message.content.strip()
 
         except (json.JSONDecodeError, TypeError):
-            comment_message = "New OpenHands update"
+            # If we can't parse the additional message, provide a generic but informative update message
+            comment_message = "OpenHands has updated this pull request with new changes. Please review the changes and provide feedback if needed."
 
     # Post a comment on the PR
     if comment_message:
