@@ -45,6 +45,22 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Get latest versions and create requirements.txt
+        run: |
+          python -m pip index versions openhands-resolver > resolver_versions.txt
+          RESOLVER_VERSION=$(head -n 1 resolver_versions.txt | awk '{print $2}' | tr -d '()')
+          echo "openhands-resolver==${RESOLVER_VERSION}" >> requirements.txt
+          cat requirements.txt
+
+      - name: Cache pip dependencies
+        if: github.event.label.name == 'fix-me'
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.pythonLocation }}/lib/python3.12/site-packages/*
+          key: ${{ runner.os }}-pip-openhands-resolver-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-openhands-resolver-${{ hashFiles('requirements.txt') }}
+
       - name: Check required environment variables
         env:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
@@ -87,11 +103,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           if [ "${{ github.event.label.name }}" == "fix-me-experimental" ]; then
+            python -m pip install --upgrade pip
             pip install git+https://github.com/all-hands-ai/openhands-resolver.git
           else
-            pip install openhands-resolver
+            python -m pip install --upgrade -r requirements.txt
           fi
 
       - name: Attempt to resolve issue
