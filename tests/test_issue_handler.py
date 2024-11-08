@@ -157,6 +157,53 @@ def test_pr_handler_get_converted_issues_with_comments():
             assert prs[0].repo == 'test-repo'
             assert prs[0].head_branch == 'test-branch'
 
+def test_pr_handler_guess_success_only_review_comments():
+    # Create a PR handler instance
+    handler = PRHandler('test-owner', 'test-repo', 'test-token')
+    
+    # Create a mock issue with only review comments
+    issue = GithubIssue(
+        owner='test-owner',
+        repo='test-repo',
+        number=1,
+        title='Test PR',
+        body='Test Body',
+        thread_comments=None,
+        closing_issues=['Issue description'],
+        review_comments=['Please fix the formatting', 'Add more tests'],
+        thread_ids=None,
+        head_branch='test-branch'
+    )
+    
+    # Create mock history
+    history = [MessageAction(content='Fixed the formatting and added more tests')]
+    
+    # Create mock LLM config
+    llm_config = LLMConfig(model='test-model', api_key='test-key')
+    
+    # Mock the LLM response
+    mock_response = MagicMock()
+    mock_response.choices = [
+        MagicMock(
+            message=MagicMock(
+                content="""--- success
+true
+
+--- explanation
+The changes successfully address the review comments."""
+            )
+        )
+    ]
+    
+    # Test the guess_success method
+    with patch('litellm.completion', return_value=mock_response):
+        success, success_list, explanation = handler.guess_success(issue, history, llm_config)
+        
+        # Verify the results
+        assert success is True
+        assert success_list == [True]
+        assert "successfully address" in explanation
+
 def test_pr_handler_guess_success_no_comments():
     # Create a PR handler instance
     handler = PRHandler('test-owner', 'test-repo', 'test-token')
@@ -181,9 +228,8 @@ def test_pr_handler_guess_success_no_comments():
     # Create mock LLM config
     llm_config = LLMConfig(model='test-model', api_key='test-key')
     
-    # Test that it raises ValueError when no comments are present
-    try:
-        handler.guess_success(issue, history, llm_config)
-        assert False, "Expected ValueError to be raised"
-    except ValueError as e:
-        assert str(e) == "Expected review comments or thread comments to be initialized."
+    # Test that it returns appropriate message when no comments are present
+    success, success_list, explanation = handler.guess_success(issue, history, llm_config)
+    assert success is False
+    assert success_list is None
+    assert explanation == "No feedback was found to process"
