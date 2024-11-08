@@ -531,7 +531,17 @@ class PRHandler(IssueHandler):
         # Return overall success (all must be true) and explanations
         if not success_list:
             return False, None, "No feedback was processed"
-        return all(success_list), success_list, "\n".join(explanation_list)
+        
+        # Format explanations as a bullet list
+        formatted_explanations = []
+        for i, explanation in enumerate(explanation_list, 1):
+            # Clean up the explanation text
+            explanation = explanation.strip()
+            # Add bullet point and ensure proper spacing
+            formatted_explanations.append(f"* {explanation}")
+        
+        # Join with double newlines for better readability
+        return all(success_list), success_list, "The PR successfully addressed the issue by:\n\n" + "\n".join(formatted_explanations)
 
 
 

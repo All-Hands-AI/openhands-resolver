@@ -403,6 +403,66 @@ async def test_process_issue(mock_output_dir, mock_prompt_template):
 
 
 
+def test_pr_handler_guess_success():
+    # Create a PR handler instance
+    handler = PRHandler("owner", "repo", "token")
+    
+    # Create a mock issue with review threads
+    issue = GithubIssue(
+        owner="test_owner",
+        repo="test_repo",
+        number=123,
+        title="Test PR",
+        body="This is a test PR",
+        review_threads=[
+            ReviewThread(
+                comment="Please fix the indentation",
+                files=["/src/file1.py"]
+            ),
+            ReviewThread(
+                comment="Add error handling",
+                files=["/src/file2.py"]
+            )
+        ],
+        closing_issues=["Fix bug #123"]
+    )
+    
+    # Create mock history with a last message
+    history = [MagicMock(message="Fixed indentation and added error handling")]
+    
+    # Create mock LLM config
+    llm_config = LLMConfig(model="test_model", api_key="test_key")
+    
+    # Mock litellm.completion to return success responses
+    mock_responses = [
+        MagicMock(
+            choices=[
+                MagicMock(
+                    message=MagicMock(
+                        content="--- success\ntrue\n--- explanation\nFixed indentation in file1.py"
+                    )
+                )
+            ]
+        ),
+        MagicMock(
+            choices=[
+                MagicMock(
+                    message=MagicMock(
+                        content="--- success\ntrue\n--- explanation\nAdded try-catch blocks in file2.py"
+                    )
+                )
+            ]
+        )
+    ]
+    
+    with patch('litellm.completion', side_effect=mock_responses):
+        success, success_list, explanation = handler.guess_success(issue, history, llm_config)
+    
+    # Verify the results
+    assert success is True  # Both feedbacks were addressed
+    assert success_list == [True, True]  # Both individual successes
+    assert explanation == "The PR successfully addressed the issue by:\n\n* Fixed indentation in file1.py\n* Added try-catch blocks in file2.py"
+
 def test_get_instruction(mock_prompt_template, mock_followup_prompt_template):
     issue = GithubIssue(
         owner="test_owner",
