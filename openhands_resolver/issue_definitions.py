@@ -160,7 +160,7 @@ class IssueHandler(IssueHandlerInterface):
         if issue.thread_comments:
             issue_context += "\n\nIssue Thread Comments:\n" + "\n---\n".join(issue.thread_comments)
             
-        with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/issue-success-check.jinja"), 'r') as f:
+        with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/issue-success-check.jinja"), 'r') as f:
             template = jinja2.Template(f.read())
         prompt = template.render(issue_context=issue_context, last_message=last_message)
 
@@ -428,10 +428,10 @@ class PRHandler(IssueHandler):
             for review_thread in issue.review_threads:
                 files_context = json.dumps(review_thread.files, indent=4)
 
-                with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-feedback-check.jinja"), 'r') as f:
+                with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-feedback-check.jinja"), 'r') as f:
                     template = jinja2.Template(f.read())
                 
-                prompt = template.render(issue_context=issues_context, last_message=last_message)
+                prompt = template.render(issue_context=issues_context, last_message=last_message, files_context=files_context)
 
                 response = litellm.completion(
                     model=llm_config.model,
@@ -449,10 +449,10 @@ class PRHandler(IssueHandler):
         # Handle PRs with only thread comments (no file-specific review comments)
         elif issue.thread_comments:
             thread_context = "\n---\n".join(issue.thread_comments)
-            with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-thread-check.jinja"), 'r') as f:
+            with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-thread-check.jinja"), 'r') as f:
                 template = jinja2.Template(f.read())
             
-            prompt = template.render(issue_context=issues_context, last_message=last_message)
+            prompt = template.render(issue_context=issues_context, last_message=last_message, thread_context=thread_context)
 
             response = litellm.completion(
                 model=llm_config.model,
@@ -473,10 +473,10 @@ class PRHandler(IssueHandler):
         elif issue.review_comments:
             # Handle PRs with only review comments (no file-specific review comments or thread comments)
             review_context = "\n---\n".join(issue.review_comments)
-            with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-review-check.jinja"), 'r') as f:
+            with open(os.path.join(os.path.dirname(__file__), "prompts/guess_success/pr-review-check.jinja"), 'r') as f:
                 template = jinja2.Template(f.read())
             
-            prompt = template.render(issue_context=issues_context, last_message=last_message)
+            prompt = template.render(issue_context=issues_context, last_message=last_message, review_context=review_context)
 
             response = litellm.completion(
                 model=llm_config.model,
