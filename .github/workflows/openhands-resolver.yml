@@ -3,9 +3,6 @@ name: Auto-Fix Tagged Issue with OpenHands
 on:
   workflow_call:
     inputs:
-      issue_number:
-        required: true
-        type: number
       max_iterations:
         required: false
         type: number
@@ -83,7 +80,7 @@ jobs:
             echo "ISSUE_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
             echo "ISSUE_TYPE=pr" >> $GITHUB_ENV
           else
-            echo "ISSUE_NUMBER=${{ github.event.issue.number || inputs.issue_number }}" >> $GITHUB_ENV
+            echo "ISSUE_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
             echo "ISSUE_TYPE=issue" >> $GITHUB_ENV
           fi
           echo "MAX_ITERATIONS=${{ inputs.max_iterations || 50 }}" >> $GITHUB_ENV
