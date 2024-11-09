@@ -130,6 +130,14 @@ jobs:
             echo "RESOLUTION_SUCCESS=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Upload output.jsonl as artifact
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload even if the previous steps fail
+        with:
+          name: resolver-output
+          path: /tmp/output/output.jsonl
+          retention-days: 30  # Keep the artifact for 30 days
+
       - name: Create draft PR or push branch
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
