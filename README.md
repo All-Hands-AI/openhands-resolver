@@ -8,40 +8,55 @@ to help you resolve one issue at a time with high quality.
 
 Getting started is simple - just follow the instructions below.
 
-## Using the GitHub Actions Workflow
+## Using the GitHub App
 
-This repository includes a GitHub Actions workflow that can automatically attempt to fix individual issues labeled with 'fix-me'.
-Follow these steps to use this workflow in your own repository:
+You can use OpenHands Resolver as a GitHub App that automatically attempts to fix issues and pull requests labeled with 'fix-me'. Here's how to set it up:
 
-1. [Create a personal access token](https://github.com/settings/tokens?type=beta) with read/write scope for "contents", "issues", "pull requests", and "workflows"
+1. Create a new GitHub App:
+   - Go to your GitHub Settings > Developer Settings > GitHub Apps > New GitHub App
+   - Fill in the following details:
+     - Name: Choose a name for your app (e.g., "OpenHands Resolver")
+     - Homepage URL: Your app's homepage or repository URL
+     - Webhook URL: The URL where your app is deployed (e.g., https://your-app.herokuapp.com/webhook)
+     - Webhook Secret: Generate a secure random string
+   - Permissions needed:
+     - Repository:
+       - Contents: Read & write
+       - Issues: Read & write
+       - Pull requests: Read & write
+       - Metadata: Read-only
+     - Subscribe to events:
+       - Issues
+       - Pull requests
+   - Save the app and note down:
+     - App ID
+     - Webhook secret
+     - Generate and download a private key
 
-2. Create an API key for the [Claude API](https://www.anthropic.com/api) (recommended) or another supported LLM service
+2. Deploy the app:
+   - Deploy to your preferred platform (e.g., Heroku, Google Cloud Run, etc.)
+   - Set the following environment variables:
+     - Required:
+       - `GITHUB_APP_ID`: Your GitHub App ID
+       - `GITHUB_PRIVATE_KEY`: The contents of the private key file
+       - `GITHUB_WEBHOOK_SECRET`: The webhook secret you created
+       - `LLM_MODEL`: LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
+       - `LLM_API_KEY`: Your LLM API key
+     - Optional:
+       - `LLM_BASE_URL`: Base URL for LLM API (only if using a proxy)
+       - `PORT`: Port for the web server (defaults to 5000)
 
-3. Copy `examples/openhands-resolver.yml` to your repository's `.github/workflows/` directory
+3. Install the app:
+   - Go to your GitHub App's settings
+   - Click "Install App"
+   - Choose which repositories to install it on
 
-4. Configure repository permissions:
-    - Go to `Settings -> Actions -> General -> Workflow permissions`
-    - Select "Read and write permissions"
-    - Enable "Allow Github Actions to create and approve pull requests"
-
-5. Set up [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions):
-   - Required:
-     - `PAT_USERNAME`: GitHub username for the personal access token
-     - `PAT_TOKEN`: The personal access token
-     - `LLM_MODEL`: LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
-     - `LLM_API_KEY`: Your LLM API key
-   - Optional:
-     - `LLM_BASE_URL`: Base URL for LLM API (only if using a proxy)
-
-   Note: You can set these secrets at the organization level to use across multiple repositories.
-
-6. Usage:
-   - Add the 'fix-me' label to any issue you want the AI to resolve
-   - The workflow will:
-     1. Attempt to resolve the issue using OpenHands
+4. Usage:
+   - Add the 'fix-me' label to any issue or pull request you want the AI to resolve
+   - The app will:
+     1. Attempt to resolve the issue/PR using OpenHands
      2. Create a draft PR if successful, or push a branch if unsuccessful
-     3. Comment on the issue with the results
-     4. Remove the 'fix-me' label once processed
+     3. Comment on the issue/PR with the results
 
 Need help? Feel free to [open an issue](https://github.com/all-hands-ai/openhands-resolver/issues) or email us at [contact@all-hands.dev](mailto:contact@all-hands.dev).
 

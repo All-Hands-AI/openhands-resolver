@@ -1,0 +1,1 @@
+web: gunicorn openhands_resolver.app:app

@@ -18,6 +18,9 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.12"
 openhands-ai = "^0.12.3"
+flask = "^3.0.0"
+pyjwt = {extras = ["crypto"], version = "^2.8.0"}
+gunicorn = "^21.2.0"
 
 pandas = "^2.2.3"
 pytest = "^8.3.3"
