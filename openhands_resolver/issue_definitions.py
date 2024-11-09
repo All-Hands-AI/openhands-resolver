@@ -486,7 +486,7 @@ class PRHandler(IssueHandler):
         explanation_list = []
 
         # Handle PRs with file-specific review comments
-        if issue.review_threads is not None:
+        if issue.review_threads:
             for review_thread in issue.review_threads:
                 success, explanation = self._check_review_thread(review_thread, issues_context, last_message, llm_config)
                 success_list.append(success)
