@@ -366,30 +366,48 @@ def update_existing_pull_request(
     print(f"Updated pull request {pr_url} with new patches.")
 
     # Generate a summary of all comment success indicators for PR message
-    if not comment_message and additional_message:
-        try:
-            explanations = json.loads(additional_message)
-            if explanations:
-                comment_message = "OpenHands made the following changes to resolve the issues:\n\n"
-                for explanation in explanations:
-                    comment_message += f"- {explanation}\n"
+    if not comment_message:
+        # Get git diff to include in summary
+        result = subprocess.run(
+            ["git", "-C", patch_dir, "diff", "HEAD^", "HEAD", "--stat"],
+            capture_output=True,
+            text=True,
+        )
+        diff_summary = result.stdout.strip() if result.returncode == 0 else ""
 
-                # Summarize with LLM if provided
-                if llm_config is not None:
-                    with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-changes-summary.jinja"), 'r') as f:
-                        template = jinja2.Template(f.read())
-                    prompt = template.render(comment_message=comment_message)
-                    response = litellm.completion(
-                        model=llm_config.model,
-                        messages=[{"role": "user", "content": prompt}],
-                        api_key=llm_config.api_key,
-                        base_url=llm_config.base_url,
-                    ) 
-                    comment_message = response.choices[0].message.content.strip()
+        try:
+            if additional_message:
+                explanations = json.loads(additional_message)
+                if explanations:
+                    comment_message = "OpenHands made the following changes to resolve the issues:\n\n"
+                    for explanation in explanations:
+                        comment_message += f"- {explanation}\n"
+            else:
+                comment_message = "OpenHands has made changes to address the feedback.\n\n"
+
+            # Add diff summary
+            if diff_summary:
+                comment_message += f"\nChanges made:\n```\n{diff_summary}\n```"
+
+            # Summarize with LLM if provided
+            if llm_config is not None:
+                with open(os.path.join(os.path.dirname(__file__), "prompts/resolve/pr-changes-summary.jinja"), 'r') as f:
+                    template = jinja2.Template(f.read())
+                prompt = template.render(comment_message=comment_message)
+                response = litellm.completion(
+                    model=llm_config.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    api_key=llm_config.api_key,
+                    base_url=llm_config.base_url,
+                ) 
+                comment_message = response.choices[0].message.content.strip()
 
         except (json.JSONDecodeError, TypeError):
-            # If we can't parse the additional message, provide a generic but informative update message
-            comment_message = "OpenHands has updated this pull request with new changes. Please review the changes and provide feedback if needed."
+            # If we can't parse the additional message, still provide a meaningful update with diff
+            comment_message = "OpenHands has updated this pull request with new changes:\n\n"
+            if diff_summary:
+                comment_message += f"```\n{diff_summary}\n```\n\n"
+            comment_message += "Please review the changes and provide feedback if needed."
 
     # Post a comment on the PR
     if comment_message:
