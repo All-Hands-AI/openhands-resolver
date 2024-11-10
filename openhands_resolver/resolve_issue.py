@@ -302,7 +302,7 @@ async def resolve_issue(
     issue_type: str,
     repo_instruction: str | None,
     issue_number: int,
-    comment_id: str | None,
+    comment_id: int | None,
     reset_logger: bool = False,
 ) -> None:
     """Resolve a single github issue.
