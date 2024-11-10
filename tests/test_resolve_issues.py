@@ -736,6 +736,45 @@ def test_download_pr_with_review_comments():
     assert not issues[0].closing_issues
     assert not issues[0].thread_ids
 
+def test_download_issue_with_specific_comment():
+    handler = IssueHandler("owner", "repo", "token")
+    
+    # Define the specific comment_id to filter
+    specific_comment_id = 101
+
+    # Mock issue and comment responses
+    mock_issue_response = MagicMock()
+    mock_issue_response.json.side_effect = [
+        [
+            {"number": 1, "title": "Issue 1", "body": "This is an issue"},
+        ],
+        None,
+    ]
+    mock_issue_response.raise_for_status = MagicMock()
+
+    mock_comments_response = MagicMock()
+    mock_comments_response.json.return_value = [
+        {"id": specific_comment_id, "body": "Specific comment body", "issue_url": "https://api.github.com/repos/owner/repo/issues/1"},
+        {"id": 102, "body": "Another comment body", "issue_url": "https://api.github.com/repos/owner/repo/issues/2"},
+    ]
+    mock_comments_response.raise_for_status = MagicMock()
+
+
+    def get_mock_response(url, *args, **kwargs):
+        if "/comments" in url:
+            return mock_comments_response
+        
+        return mock_issue_response
+
+
+    with patch('requests.get', side_effect=get_mock_response):
+        issues = handler.get_converted_issues(comment_id=specific_comment_id)
+
+    assert len(issues) == 1
+    assert issues[0].number == 1
+    assert issues[0].title == "Issue 1"
+    assert issues[0].thread_comments == ["Specific comment body"]
+
 
 if __name__ == "__main__":
     pytest.main()

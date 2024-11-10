@@ -97,14 +97,12 @@ class IssueHandler(IssueHandlerInterface):
             if comment_id:
                 matching_comment = next((comment["body"] for comment in comments if comment["id"] == comment_id), None)
                 if matching_comment:
-                    print("found the comment")
                     return [matching_comment]
             else:
                 all_comments.extend([comment["body"] for comment in comments])
 
             params["page"] += 1
 
-        print("didn't match")
         return all_comments if all_comments else None
     
     def get_converted_issues(self, comment_id: int | None = None) -> list[GithubIssue]:
@@ -128,7 +126,6 @@ class IssueHandler(IssueHandlerInterface):
             
             # Get issue thread comments
             thread_comments = self._get_issue_comments(issue["number"], comment_id=comment_id)
-            print("final thread comments", thread_comments)
             # Convert empty lists to None for optional fields
             issue_details = GithubIssue(
                                 owner=self.owner,
