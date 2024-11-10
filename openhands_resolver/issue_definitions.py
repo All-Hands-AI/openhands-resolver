@@ -111,7 +111,6 @@ class IssueHandler(IssueHandlerInterface):
         Returns:
             List of Github issues.
         """
-        logger.warning(f"Fetching for comment_id {comment_id}")
         all_issues = self._download_issues_from_github()
         converted_issues = []
         for issue in all_issues:
