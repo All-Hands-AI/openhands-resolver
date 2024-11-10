@@ -302,6 +302,7 @@ async def resolve_issue(
     issue_type: str,
     repo_instruction: str | None,
     issue_number: int,
+    comment_id: str | None,
     reset_logger: bool = False,
 ) -> None:
     """Resolve a single github issue.
@@ -322,7 +323,7 @@ async def resolve_issue(
     issue_handler = issue_handler_factory(issue_type, owner, repo, token)
 
     # Load dataset
-    issues: list[GithubIssue] = issue_handler.get_converted_issues()
+    issues: list[GithubIssue] = issue_handler.get_converted_issues(comment_id=comment_id)
     
     # Find the specific issue
     issue = next((i for i in issues if i.number == issue_number), None)
@@ -467,6 +468,13 @@ def main():
         help="Issue number to resolve.",
     )
     parser.add_argument(
+        "--comment-id",
+        type=int,
+        required=False,
+        default=None,
+        help="Resolve a specific comment"
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="output",
@@ -566,6 +574,7 @@ def main():
             issue_type=issue_type,
             repo_instruction=repo_instruction,
             issue_number=my_args.issue_number,
+            comment_id=my_args.comment_id,
         )
     )
 
