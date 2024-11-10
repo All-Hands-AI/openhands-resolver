@@ -430,6 +430,13 @@ async def resolve_issue(
 def main():
     import argparse
 
+    def int_or_none(value):
+        if value.lower() == 'none':
+            return None
+        else:
+            return int(value)
+
+
     parser = argparse.ArgumentParser(description="Resolve a single issue from Github.")
     parser.add_argument(
         "--repo",
@@ -469,7 +476,7 @@ def main():
     )
     parser.add_argument(
         "--comment-id",
-        type=int,
+        type=int_or_none,
         required=False,
         default=None,
         help="Resolve a specific comment"
