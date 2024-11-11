@@ -23,6 +23,10 @@ Follow these steps to use this workflow in your own repository:
     - Go to `Settings -> Actions -> General -> Workflow permissions`
     - Select "Read and write permissions"
     - Enable "Allow Github Actions to create and approve pull requests"
+    
+    Note: If the "Read and write permissions" option is greyed out:
+    - First check if permissions need to be set at the organization level
+    - If still greyed out at the organization level, permissions need to be set in the [Enterprise policy settings](https://docs.github.com/en/enterprise-cloud@latest/admin/enforcing-policies/enforcing-policies-for-your-enterprise/enforcing-policies-for-github-actions-in-your-enterprise#enforcing-a-policy-for-workflow-permissions-in-your-enterprise)
 
 5. Set up [GitHub secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions):
    - Required:
@@ -36,12 +40,24 @@ Follow these steps to use this workflow in your own repository:
    Note: You can set these secrets at the organization level to use across multiple repositories.
 
 6. Usage:
-   - Add the 'fix-me' label to any issue you want the AI to resolve
-   - The workflow will:
-     1. Attempt to resolve the issue using OpenHands
-     2. Create a draft PR if successful, or push a branch if unsuccessful
-     3. Comment on the issue with the results
-     4. Remove the 'fix-me' label once processed
+   There are two ways to trigger the OpenHands agent:
+
+   a. Using the 'fix-me' label:
+      - Add the 'fix-me' label to any issue you want the AI to resolve
+      - The agent will consider all comments in the issue thread when resolving
+      - The workflow will:
+        1. Attempt to resolve the issue using OpenHands
+        2. Create a draft PR if successful, or push a branch if unsuccessful
+        3. Comment on the issue with the results
+        4. Remove the 'fix-me' label once processed
+
+   b. Using `@openhands-agent` mention:
+      - Create a new comment containing `@openhands-agent` in any issue
+      - The agent will only consider the comment where it's mentioned
+      - The workflow will:
+        1. Attempt to resolve the issue based on the specific comment
+        2. Create a draft PR if successful, or push a branch if unsuccessful
+        3. Comment on the issue with the results
 
 Need help? Feel free to [open an issue](https://github.com/all-hands-ai/openhands-resolver/issues) or email us at [contact@all-hands.dev](mailto:contact@all-hands.dev).
 
