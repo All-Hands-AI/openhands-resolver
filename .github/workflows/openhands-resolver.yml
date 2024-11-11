@@ -11,6 +11,9 @@ on:
         required: false
         type: string
         default: "@openhands-agent"
+      repo-instruction-file:
+        required: false
+        type: string
     secrets:
       LLM_MODEL:
         required: true
@@ -97,6 +100,7 @@ jobs:
           fi
 
           echo "COMMENT_ID=${{ github.event.comment.id || 'None' }}" >> $GITHUB_ENV
+          echo "MAX_ITERATIONS=${{ inputs.max_iterations || 50 }}" >> $GITHUB_ENV
           echo "MAX_ITERATIONS=${{ inputs.max_iterations || 50 }}" >> $GITHUB_ENV
 
       - name: Comment on issue with start message
