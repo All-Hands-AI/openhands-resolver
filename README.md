@@ -51,7 +51,7 @@ Follow these steps to use this workflow in your own repository:
         3. Comment on the issue with the results
         4. Remove the 'fix-me' label once processed
 
-   b. Using @openhands-agent mention:
+   b. Using `@openhands-agent` mention:
       - Create a new comment containing `@openhands-agent` in any issue
       - The agent will only consider the comment where it's mentioned
       - The workflow will:
