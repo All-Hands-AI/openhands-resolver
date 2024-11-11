@@ -42,8 +42,8 @@ jobs:
       github.event.label.name == 'fix-me' ||
       github.event.label.name == 'fix-me-experimental' ||
       (github.event_name == 'issue_comment' && 
-       startsWith(github.event.comment.body, ${{ inputs.macro || '@openhands-agent' }}) &&
-       (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'COLLABORATOR' || github.event.comment.author_association == 'MEMBER'))
+      startsWith(github.event.comment.body, inputs.macro || '@openhands-agent') &&
+      (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'COLLABORATOR' || github.event.comment.author_association == 'MEMBER'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
