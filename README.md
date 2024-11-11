@@ -23,7 +23,7 @@ Follow these steps to use this workflow in your own repository:
     - Go to `Settings -> Actions -> General -> Workflow permissions`
     - Select "Read and write permissions"
     - Enable "Allow Github Actions to create and approve pull requests"
-    
+
     Note: If the "Read and write permissions" option is greyed out:
     - First check if permissions need to be set at the organization level
     - If still greyed out at the organization level, permissions need to be set in the [Enterprise policy settings](https://docs.github.com/en/enterprise-cloud@latest/admin/enforcing-policies/enforcing-policies-for-your-enterprise/enforcing-policies-for-github-actions-in-your-enterprise#enforcing-a-policy-for-workflow-permissions-in-your-enterprise)
@@ -66,6 +66,7 @@ Need help? Feel free to [open an issue](https://github.com/all-hands-ai/openhand
 If you prefer to run the resolver programmatically instead of using GitHub Actions, follow these steps:
 
 1. Install the package:
+
 ```bash
 pip install openhands-resolver
 ```
@@ -80,6 +81,7 @@ pip install openhands-resolver
    - If you don't have push access to the target repo, you can fork it first
 
 3. Set up environment variables:
+
 ```bash
 # GitHub credentials
 export GITHUB_TOKEN="your-github-token"
@@ -122,6 +124,7 @@ python -m openhands_resolver.resolve_all_issues --repo [OWNER]/[REPO] --issue-nu
 ```
 
 For example:
+
 ```bash
 python -m openhands_resolver.resolve_all_issues --repo all-hands-ai/openhands-resolver --issue-numbers 100,101,102
 ```
@@ -169,8 +172,11 @@ If you want to upload to a fork, you can do so by specifying the `fork-owner`:
 python -m openhands_resolver.send_pull_request --issue-number ISSUE_NUMBER --github-username YOUR_GITHUB_USERNAME --pr-type draft --fork-owner YOUR_GITHUB_USERNAME
 ```
 
+## Providing Custom Instructions
+
+You can customize how the AI agent approaches issue resolution by adding a `.openhands_instructions` file to the root of your repository. If present, this file's contents will be injected into the prompt for openhands edits.
+
 ## Troubleshooting
 
 If you have any issues, please open an issue on this github repo, we're happy to help!
 Alternatively, you can [email us](mailto:contact@all-hands.dev) or join the [OpenHands Slack workspace](https://join.slack.com/t/opendevin/shared_invite/zt-2oikve2hu-UDxHeo8nsE69y6T7yFX_BA) and ask there.
-
