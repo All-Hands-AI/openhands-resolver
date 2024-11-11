@@ -23,6 +23,8 @@ on:
     types: [labeled]
   pull_request:
     types: [labeled]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -31,7 +33,11 @@ permissions:
 
 jobs:
   auto-fix:
-    if: github.event_name == 'workflow_call' || github.event.label.name == 'fix-me' || github.event.label.name == 'fix-me-experimental'
+    if: |
+      github.event_name == 'workflow_call' ||
+      github.event.label.name == 'fix-me' ||
+      github.event.label.name == 'fix-me-experimental' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@openhands-agent'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -83,6 +89,8 @@ jobs:
             echo "ISSUE_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
             echo "ISSUE_TYPE=issue" >> $GITHUB_ENV
           fi
+
+          echo "COMMENT_ID=${{ github.event.comment.id || 'None' }}" >> $GITHUB_ENV
           echo "MAX_ITERATIONS=${{ inputs.max_iterations || 50 }}" >> $GITHUB_ENV
 
       - name: Comment on issue with start message
@@ -119,7 +127,8 @@ jobs:
             --repo ${{ github.repository }} \
             --issue-number ${{ env.ISSUE_NUMBER }} \
             --issue-type ${{ env.ISSUE_TYPE }} \
-            --max-iterations ${{ env.MAX_ITERATIONS }}
+            --max-iterations ${{ env.MAX_ITERATIONS }} \
+            --comment-id ${{ env.COMMENT_ID }}
 
       - name: Check resolution result
         id: check_result
@@ -132,11 +141,11 @@ jobs:
 
       - name: Upload output.jsonl as artifact
         uses: actions/upload-artifact@v4
-        if: always()  # Upload even if the previous steps fail
+        if: always() # Upload even if the previous steps fail
         with:
           name: resolver-output
           path: /tmp/output/output.jsonl
-          retention-days: 30  # Keep the artifact for 30 days
+          retention-days: 30 # Keep the artifact for 30 days
 
       - name: Create draft PR or push branch
         env:

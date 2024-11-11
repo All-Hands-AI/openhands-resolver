@@ -18,7 +18,7 @@ class IssueHandlerInterface(ABC):
     issue_type: ClassVar[str]
     
     @abstractmethod
-    def get_converted_issues(self) -> list[GithubIssue]:
+    def get_converted_issues(self, comment_id: int | None = None) -> list[GithubIssue]:
         """Download issues from GitHub."""
         pass
     
@@ -76,7 +76,7 @@ class IssueHandler(IssueHandlerInterface):
         image_pattern = r'!\[.*?\]\((https?://[^\s)]+)\)'
         return re.findall(image_pattern, issue_body)
 
-    def _get_issue_comments(self, issue_number: int) -> list[str] | None:
+    def _get_issue_comments(self, issue_number: int, comment_id: int | None = None) -> list[str] | None:
         """Download comments for a specific issue from Github."""
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}/comments"
         headers = {
@@ -94,18 +94,23 @@ class IssueHandler(IssueHandlerInterface):
             if not comments:
                 break
 
-            all_comments.extend([comment["body"] for comment in comments])
+            if comment_id:
+                matching_comment = next((comment["body"] for comment in comments if comment["id"] == comment_id), None)
+                if matching_comment:
+                    return [matching_comment]
+            else:
+                all_comments.extend([comment["body"] for comment in comments])
+
             params["page"] += 1
 
         return all_comments if all_comments else None
     
-    def get_converted_issues(self) -> list[GithubIssue]:
+    def get_converted_issues(self, comment_id: int | None = None) -> list[GithubIssue]:
         """Download issues from Github.
 
         Returns:
             List of Github issues.
         """
-         
         all_issues = self._download_issues_from_github()
         converted_issues = []
         for issue in all_issues:
@@ -119,7 +124,7 @@ class IssueHandler(IssueHandlerInterface):
                 continue
             
             # Get issue thread comments
-            thread_comments = self._get_issue_comments(issue["number"])
+            thread_comments = self._get_issue_comments(issue["number"], comment_id=comment_id)
             # Convert empty lists to None for optional fields
             issue_details = GithubIssue(
                                 owner=self.owner,
@@ -132,6 +137,7 @@ class IssueHandler(IssueHandlerInterface):
                             )
                 
             converted_issues.append(issue_details)
+
         return converted_issues
 
     def get_instruction(self, issue: GithubIssue, prompt_template: str, repo_instruction: str | None = None) -> tuple[str, list[str]]:
@@ -332,7 +338,7 @@ class PRHandler(IssueHandler):
 
         return all_comments if all_comments else None
 
-    def get_converted_issues(self) -> list[GithubIssue]:
+    def get_converted_issues(self, comment_id: int | None = None) -> list[GithubIssue]:
         all_issues = self._download_issues_from_github()
         converted_issues = []
         for issue in all_issues:
