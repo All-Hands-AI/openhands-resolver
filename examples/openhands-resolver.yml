@@ -13,33 +13,19 @@ permissions:
   pull-requests: write
   issues: write
 
-env:
-  MACRO: "@openhands-agent"
-  MAX_ITERATIONS: 50
-
 jobs:
-  get-env:
-    name: Get Environment vars
-    runs-on: ubuntu-latest
+  call-openhands-resolver:
     if: |
       ${{
         github.event.label.name == 'fix-me' ||
         (github.event_name == 'issue_comment' && 
+        startsWith(github.event.comment.body, vars.OPENHANDS_MACRO || '@openhands-agent') &&
         (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'COLLABORATOR' || github.event.comment.author_association == 'MEMBER'))
       }}
-    outputs:
-      MACRO: ${{ env.MACRO }}
-      MAX_ITERATIONS: ${{ env.MAX_ITERATIONS }}
-    steps:
-      - run: echo "null"
-
-  call-openhands-resolver:
-    needs: [get-env]
-    if: ${{ startsWith(github.event.comment.body, needs.get-env.outputs.MACRO) || github.event.label.name == 'fix-me' }}
     uses: All-Hands-AI/openhands-resolver/.github/workflows/openhands-resolver.yml@main
     with:
-      macro: ${{ needs.get-env.outputs.MACRO }}
-      max_iterations: ${{ fromJSON(needs.get-env.outputs.MAX_ITERATIONS) }}
+      macro: ${{ vars.OPENHANDS_MACRO || '@openhands-agent' }}
+      max_iterations: 50
     secrets:
       PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
