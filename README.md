@@ -28,7 +28,7 @@ Follow these steps to use this workflow in your own repository:
    - Required:
      - `PAT_USERNAME`: GitHub username for the personal access token
      - `PAT_TOKEN`: The personal access token
-     - `LLM_MODEL`: LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20240620")
+     - `LLM_MODEL`: LLM model to use (e.g., "anthropic/claude-3-5-sonnet-20241022")
      - `LLM_API_KEY`: Your LLM API key
    - Optional:
      - `LLM_BASE_URL`: Base URL for LLM API (only if using a proxy)
@@ -70,7 +70,7 @@ export GITHUB_TOKEN="your-github-token"
 export GITHUB_USERNAME="your-github-username"  # Optional, defaults to token owner
 
 # LLM configuration
-export LLM_MODEL="anthropic/claude-3-5-sonnet-20240620"  # Recommended
+export LLM_MODEL="anthropic/claude-3-5-sonnet-20241022"  # Recommended
 export LLM_API_KEY="your-llm-api-key"
 export LLM_BASE_URL="your-api-url"  # Optional, for API proxies
 ```
