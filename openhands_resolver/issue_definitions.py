@@ -197,7 +197,7 @@ class PRHandler(IssueHandler):
 
 
 
-    def __download_pr_metadata(self, pull_number: int) -> tuple[list[str], list[str], list[ReviewThread], list[str]]:
+    def __download_pr_metadata(self, pull_number: int, comment_id: int | None = None) -> tuple[list[str], list[str], list[ReviewThread], list[str]]:
     
         """
             Run a GraphQL query against the GitHub API for information on 
@@ -230,6 +230,7 @@ class PRHandler(IssueHandler):
                                 nodes {
                                     body
                                     state
+                                    fullDatabaseId
                                 }
                             }
                             reviewThreads(first: 100) {
@@ -242,6 +243,7 @@ class PRHandler(IssueHandler):
                                             nodes {
                                                 body
                                                 path
+                                                fullDatabaseId
                                             }
                                         }
                                     }
@@ -279,6 +281,8 @@ class PRHandler(IssueHandler):
 
         # Get review comments
         reviews = pr_data.get("reviews", {}).get("nodes", [])
+        if comment_id is not None:
+            reviews = [review for review in reviews if int(review["fullDatabaseId"]) == comment_id]
         review_bodies = [review["body"] for review in reviews]
 
         # Get unresolved review threads
@@ -289,11 +293,14 @@ class PRHandler(IssueHandler):
             node = thread.get("node", {})
             if not node.get("isResolved", True):  # Check if the review thread is unresolved
                 id = node.get("id")
-                thread_ids.append(id)
+                thread_contains_comment_id = False
                 my_review_threads = node.get("comments", {}).get("nodes", [])
                 message = ""
                 files = []
                 for i, review_thread in enumerate(my_review_threads):
+                    if comment_id is not None and int(review_thread["fullDatabaseId"]) == comment_id:
+                        thread_contains_comment_id = True
+
                     if i == len(my_review_threads) - 1:  # Check if it's the last thread in the thread
                         if len(my_review_threads) > 1:
                             message += "---\n"  # Add "---" before the last message if there's more than one thread
@@ -305,17 +312,19 @@ class PRHandler(IssueHandler):
                     if file:
                         files.append(file)
 
-                unresolved_thread = ReviewThread(
-                    comment=message,
-                    files=files
-                )
-                review_threads.append(unresolved_thread)
+                if comment_id is None or thread_contains_comment_id:
+                    unresolved_thread = ReviewThread(
+                        comment=message,
+                        files=files
+                    )
+                    review_threads.append(unresolved_thread)
+                    thread_ids.append(id)
 
         return closing_issues_bodies, review_bodies, review_threads, thread_ids
 
 
     # Override processing of downloaded issues
-    def _get_pr_comments(self, pr_number: int) -> list[str] | None:
+    def _get_pr_comments(self, pr_number: int, comment_id: int | None = None) -> list[str] | None:
         """Download comments for a specific pull request from Github."""
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{pr_number}/comments"
         headers = {
@@ -332,8 +341,14 @@ class PRHandler(IssueHandler):
 
             if not comments:
                 break
+            
+            if comment_id is not None:
+                matching_comment = next((comment["body"] for comment in comments if comment["id"] == comment_id), None)
+                if matching_comment:
+                    return [matching_comment]
+            else:
+                all_comments.extend([comment["body"] for comment in comments])
 
-            all_comments.extend([comment["body"] for comment in comments])
             params["page"] += 1
 
         return all_comments if all_comments else None
@@ -351,11 +366,11 @@ class PRHandler(IssueHandler):
 
             # Handle None body for PRs
             body = issue.get("body") if issue.get("body") is not None else ""
-            closing_issues, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"])
+            closing_issues, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"], comment_id=comment_id)
             head_branch = issue["head"]["ref"]
             
             # Get PR thread comments
-            thread_comments = self._get_pr_comments(issue["number"])
+            thread_comments = self._get_pr_comments(issue["number"], comment_id=comment_id)
             
             issue_details = GithubIssue(
                                 owner=self.owner,
