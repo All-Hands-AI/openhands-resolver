@@ -34,11 +34,6 @@ jobs:
     if: github.event_name == 'workflow_call' || github.event.label.name == 'fix-me' || github.event.label.name == 'fix-me-experimental'
     runs-on: ubuntu-latest
     steps:
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
