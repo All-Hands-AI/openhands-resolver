@@ -18,7 +18,9 @@ jobs:
     uses: All-Hands-AI/openhands-resolver/.github/workflows/openhands-resolver.yml@main
     if: |
       github.event.label.name == 'fix-me' ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, ${{ inputs.macro || '@openhands-agent' }}))
+      (github.event_name == 'issue_comment' && 
+       contains(github.event.comment.body, ${{ inputs.macro || '@openhands-agent' }}) &&
+       (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MAINTAINER'))
     with:
       max_iterations: 50
       macro: "@openhands-agent"
