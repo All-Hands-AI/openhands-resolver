@@ -3519,13 +3519,13 @@ datalib = ["numpy (>=1)", "pandas (>=1.2.3)", "pandas-stubs (>=1.1.0.11)"]
 
 [[package]]
 name = "openhands-ai"
-version = "0.12.3"
+version = "0.13.0"
 description = "OpenHands: Code Less, Make More"
 optional = false
 python-versions = "<4.0,>=3.12"
 files = [
-    {file = "openhands_ai-0.12.3-py3-none-any.whl", hash = "sha256:bb664f673b0cc63b8d2331ea44ec343c6c7c76e16e127c38219556d24cc2ad9c"},
-    {file = "openhands_ai-0.12.3.tar.gz", hash = "sha256:d6b780b86dd36f3fd4d21419360b39bd250613cdd15df91cc30570863342fda0"},
+    {file = "openhands_ai-0.13.0-py3-none-any.whl", hash = "sha256:ec2da4838e2752e2d8e27cccdde5816b6078e97ac8302d2fbf0d5e9c0422dca8"},
+    {file = "openhands_ai-0.13.0.tar.gz", hash = "sha256:c2d95ba6666bcbb78b48c6980512d32793a4e41a49d29df46230afd44d508d69"},
 ]
 
 [package.dependencies]
@@ -6767,4 +6767,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "73510655c4cd7a2e1f1e823b08ef02db976670dceaa7f49350072f739c84b05e"
+content-hash = "0e2db16d4f7240c39200704c0d8d8ac06c40bca09b7c7321639ba56abd7e536b"
