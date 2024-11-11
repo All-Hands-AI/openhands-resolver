@@ -5,6 +5,8 @@ on:
     types: [labeled]
   pull_request:
     types: [labeled]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -14,9 +16,12 @@ permissions:
 jobs:
   call-openhands-resolver:
     uses: All-Hands-AI/openhands-resolver/.github/workflows/openhands-resolver.yml@main
-    if: github.event.label.name == 'fix-me'
+    if: |
+      github.event.label.name == 'fix-me' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, ${{ inputs.macro || '@openhands-agent' }}))
     with:
       max_iterations: 50
+      macro: "@openhands-agent"
     secrets:
       PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       PAT_USERNAME: ${{ secrets.PAT_USERNAME }}
