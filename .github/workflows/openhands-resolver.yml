@@ -75,7 +75,11 @@ jobs:
           cat requirements.txt
 
       - name: Cache pip dependencies
-        if: github.event.label.name == 'fix-me' || github.event_name == 'issue_comment'
+        if: |
+          github.event.label.name == 'fix-me' || 
+          github.event_name == 'issue_comment' || 
+          github.event_name == 'pull_request_review_comment' || 
+          github.event_name == 'pull_request_review'
         uses: actions/cache@v3
         with:
           path: ${{ env.pythonLocation }}/lib/python3.12/site-packages/*
