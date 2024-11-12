@@ -149,8 +149,8 @@ def test_download_pr_from_github():
                 "pullRequest": {
                     "closingIssuesReferences": {
                         "edges": [
-                            {"node": {"body": "Issue 1 body"}},
-                            {"node": {"body": "Issue 2 body"}}
+                            {"node": {"body": "Issue 1 body", "number": 1}},
+                            {"node": {"body": "Issue 2 body", "number": 2}}
                         ]
                     },
                     "reviewThreads": {
