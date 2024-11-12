@@ -96,7 +96,7 @@ def test_pr_handler_get_converted_issues_with_comments():
         mock_prs_response.json.return_value = [{
             'number': 1,
             'title': 'Test PR',
-            'body': 'Test Body',
+            'body': 'Test Body fixes #1',
             'head': {'ref': 'test-branch'}
         }]
         
@@ -125,12 +125,19 @@ def test_pr_handler_get_converted_issues_with_comments():
         # We need to return empty responses for subsequent pages
         mock_empty_response = MagicMock()
         mock_empty_response.json.return_value = []
+
+        # Mock the response for fetching the external issue referenced in PR body
+        mock_external_issue_response = MagicMock()
+        mock_external_issue_response.json.return_value = {
+            "body": "This is additional context from an externally referenced issue."
+        }
         
         mock_get.side_effect = [
             mock_prs_response,  # First call for PRs
             mock_empty_response,  # Second call for PRs (empty page)
             mock_comments_response,  # Third call for PR comments
             mock_empty_response,  # Fourth call for PR comments (empty page)
+            mock_external_issue_response  # Mock response for the external issue reference #1
         ]
         
         # Mock the post request for GraphQL
@@ -152,10 +159,11 @@ def test_pr_handler_get_converted_issues_with_comments():
             # Verify other fields are set correctly
             assert prs[0].number == 1
             assert prs[0].title == 'Test PR'
-            assert prs[0].body == 'Test Body'
+            assert prs[0].body == 'Test Body fixes #1'
             assert prs[0].owner == 'test-owner'
             assert prs[0].repo == 'test-repo'
             assert prs[0].head_branch == 'test-branch'
+            assert prs[0].closing_issues == ['This is additional context from an externally referenced issue.']
 
 def test_pr_handler_guess_success_only_review_comments():
     # Create a PR handler instance
