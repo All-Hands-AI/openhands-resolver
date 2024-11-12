@@ -309,7 +309,7 @@ class PRHandler(IssueHandler):
                         message += review_thread["body"] + "\n"  # Add each thread in a new line
                     
                     file = review_thread.get("path")
-                    if file:
+                    if file and file not in files:
                         files.append(file)
 
                 if comment_id is None or thread_contains_comment_id:
