@@ -76,6 +76,11 @@ class IssueHandler(IssueHandlerInterface):
         image_pattern = r'!\[.*?\]\((https?://[^\s)]+)\)'
         return re.findall(image_pattern, issue_body)
 
+    def _extract_issue_references(self, body: str) -> list[int]:
+        pattern = r"#(\d+)"
+        return [int(match) for match in re.findall(pattern, body)]
+
+
     def _get_issue_comments(self, issue_number: int, comment_id: int | None = None) -> list[str] | None:
         """Download comments for a specific issue from Github."""
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}/comments"
@@ -197,7 +202,7 @@ class PRHandler(IssueHandler):
 
 
 
-    def __download_pr_metadata(self, pull_number: int, comment_id: int | None = None) -> tuple[list[str], list[str], list[ReviewThread], list[str]]:
+    def __download_pr_metadata(self, pull_number: int, comment_id: int | None = None) -> tuple[list[str], list[int], list[str], list[ReviewThread], list[str]]:
     
         """
             Run a GraphQL query against the GitHub API for information on 
@@ -222,6 +227,7 @@ class PRHandler(IssueHandler):
                                 edges {
                                     node {
                                         body
+                                        number
                                     }
                                 }
                             }
@@ -278,6 +284,7 @@ class PRHandler(IssueHandler):
         # Get closing issues
         closing_issues = pr_data.get("closingIssuesReferences", {}).get("edges", [])
         closing_issues_bodies = [issue["node"]["body"] for issue in closing_issues]
+        closing_issue_numbers = [issue["node"]["number"] for issue in closing_issues]  # Extract issue numbers
 
         # Get review comments
         reviews = pr_data.get("reviews", {}).get("nodes", [])
@@ -320,7 +327,7 @@ class PRHandler(IssueHandler):
                     review_threads.append(unresolved_thread)
                     thread_ids.append(id)
 
-        return closing_issues_bodies, review_bodies, review_threads, thread_ids
+        return closing_issues_bodies, closing_issue_numbers, review_bodies, review_threads, thread_ids
 
 
     # Override processing of downloaded issues
@@ -353,6 +360,45 @@ class PRHandler(IssueHandler):
 
         return all_comments if all_comments else None
 
+    def __get_context_from_external_issues_references(
+            self, 
+            closing_issues: list[str],
+            closing_issue_numbers: list[int],
+            issue_body: str,
+            review_comments: list[str],
+            review_threads: list[ReviewThread]
+        ):
+        new_issue_references = []
+        if review_comments:
+            for comment in review_comments:
+                new_issue_references.extend(self._extract_issue_references(comment))
+        
+        if review_threads:
+            for review_thread in review_threads:
+                new_issue_references.extend(self._extract_issue_references(review_thread.comment))
+
+        if issue_body:
+            new_issue_references.extend(self._extract_issue_references(issue_body))
+
+        non_duplicate_references = set(new_issue_references)
+        unique_issue_references = non_duplicate_references.difference(closing_issue_numbers)
+
+        for issue_number in unique_issue_references:
+            url = f"https://api.github.com/repos/{self.owner}/{self.repo}/issues/{issue_number}"
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Accept": "application/vnd.github.v3+json",
+            }
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            issue_data = response.json()
+            issue_body = issue_data.get("body", "")
+            if issue_body:
+                closing_issues.append(issue_body)
+
+        
+        return closing_issues
+
     def get_converted_issues(self, comment_id: int | None = None) -> list[GithubIssue]:
         all_issues = self._download_issues_from_github()
         converted_issues = []
@@ -366,9 +412,15 @@ class PRHandler(IssueHandler):
 
             # Handle None body for PRs
             body = issue.get("body") if issue.get("body") is not None else ""
-            closing_issues, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"], comment_id=comment_id)
+            closing_issues, closing_issues_numbers, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"], comment_id=comment_id)
             head_branch = issue["head"]["ref"]
-            
+
+            closing_issues = self.__get_context_from_external_issues_references(closing_issues, 
+                                                                                closing_issues_numbers, 
+                                                                                body,
+                                                                                review_comments, 
+                                                                                review_threads)
+
             # Get PR thread comments
             thread_comments = self._get_pr_comments(issue["number"], comment_id=comment_id)
             issue_details = GithubIssue(
