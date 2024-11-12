@@ -371,11 +371,6 @@ class PRHandler(IssueHandler):
             
             # Get PR thread comments
             thread_comments = self._get_pr_comments(issue["number"], comment_id=comment_id)
-            
-            if comment_id is not None and len(review_comments) == 0 and len(review_threads) == 0 and len(thread_comments) == 0:
-                raise ValueError(f"Comment ID {comment_id} did not have a match")
-
-
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
