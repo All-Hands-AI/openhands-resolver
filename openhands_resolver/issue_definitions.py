@@ -366,9 +366,14 @@ class PRHandler(IssueHandler):
             closing_issue_numbers: list[int],
             issue_body: str,
             review_comments: list[str],
-            review_threads: list[ReviewThread]
+            review_threads: list[ReviewThread],
+            thread_comments: list[str] | None
         ):
         new_issue_references = []
+
+        if issue_body:
+            new_issue_references.extend(self._extract_issue_references(issue_body))
+
         if review_comments:
             for comment in review_comments:
                 new_issue_references.extend(self._extract_issue_references(comment))
@@ -377,9 +382,10 @@ class PRHandler(IssueHandler):
             for review_thread in review_threads:
                 new_issue_references.extend(self._extract_issue_references(review_thread.comment))
 
-        if issue_body:
-            new_issue_references.extend(self._extract_issue_references(issue_body))
-
+        if thread_comments:
+            for thread_comment in thread_comments:
+                new_issue_references.extend(self._extract_issue_references(thread_comment))
+        
         non_duplicate_references = set(new_issue_references)
         unique_issue_references = non_duplicate_references.difference(closing_issue_numbers)
 
@@ -415,14 +421,17 @@ class PRHandler(IssueHandler):
             closing_issues, closing_issues_numbers, review_comments, review_threads, thread_ids = self.__download_pr_metadata(issue["number"], comment_id=comment_id)
             head_branch = issue["head"]["ref"]
 
+            # Get PR thread comments
+            thread_comments = self._get_pr_comments(issue["number"], comment_id=comment_id)
+
+
             closing_issues = self.__get_context_from_external_issues_references(closing_issues, 
                                                                                 closing_issues_numbers, 
                                                                                 body,
                                                                                 review_comments, 
-                                                                                review_threads)
-
-            # Get PR thread comments
-            thread_comments = self._get_pr_comments(issue["number"], comment_id=comment_id)
+                                                                                review_threads,
+                                                                                thread_comments)
+            
             issue_details = GithubIssue(
                                 owner=self.owner,
                                 repo=self.repo,
