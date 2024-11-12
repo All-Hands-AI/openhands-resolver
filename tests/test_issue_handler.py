@@ -384,7 +384,7 @@ def test_pr_handler_get_converted_issues_with_specific_review_thread_comment():
                                     'comments': {
                                         'nodes': [
                                             {'fullDatabaseId': specific_comment_id, 'body': 'Specific review comment', 'path': 'file1.txt'},
-                                            {'fullDatabaseId': 456, 'body': 'Another review comment', 'path': 'file2.txt'}
+                                            {'fullDatabaseId': 456, 'body': 'Another review comment', 'path': 'file1.txt'}
                                         ]
                                     }
                                 }
@@ -427,7 +427,8 @@ def test_pr_handler_get_converted_issues_with_specific_review_thread_comment():
             assert len(prs[0].review_threads) == 1
             assert isinstance(prs[0].review_threads[0], ReviewThread)
             assert prs[0].review_threads[0].comment == "Specific review comment\n---\nlatest feedback:\nAnother review comment\n"
-            
+            assert prs[0].review_threads[0].files == ["file1.txt"]
+
             # Verify other fields are set correctly
             assert prs[0].number == 1
             assert prs[0].title == 'Test PR'
