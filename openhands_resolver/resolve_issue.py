@@ -329,6 +329,19 @@ async def resolve_issue(
     issue = next((i for i in issues if i.number == issue_number), None)
     if not issue:
         raise ValueError(f"Issue {issue_number} not found")
+    
+    if comment_id is not None:
+        if (issue_type == 'pr'
+            and not issue.review_comments
+            and not issue.review_threads 
+            and not issue.thread_comments):
+            raise ValueError(f"Comment ID {comment_id} did not have a match for issue {issue.number}")
+
+        if (issue_type == 'issue'
+            and not issue.thread_comments):
+            raise ValueError(f"Comment ID {comment_id} did not have a match for issue {issue.number}")
+
+    
 
     # TEST METADATA
     model_name = llm_config.model.split("/")[-1]

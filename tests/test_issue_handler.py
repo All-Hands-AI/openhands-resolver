@@ -1,6 +1,6 @@
 from unittest.mock import patch, MagicMock
 from openhands_resolver.issue_definitions import IssueHandler, PRHandler
-from openhands_resolver.github_issue import GithubIssue
+from openhands_resolver.github_issue import GithubIssue, ReviewThread
 from openhands.events.action.message import MessageAction
 from openhands.core.config import LLMConfig
 
@@ -233,3 +233,205 @@ def test_pr_handler_guess_success_no_comments():
     assert success is False
     assert success_list is None
     assert explanation == "No feedback was found to process"
+
+def test_get_issue_comments_with_specific_comment_id():
+    # Mock the necessary dependencies
+    with patch('requests.get') as mock_get:
+        # Mock the response for comments
+        mock_comments_response = MagicMock()
+        mock_comments_response.json.return_value = [
+            {'id': 123, 'body': 'First comment'},
+            {'id': 456, 'body': 'Second comment'}
+        ]
+        
+        mock_get.return_value = mock_comments_response
+        
+        # Create an instance of IssueHandler
+        handler = IssueHandler('test-owner', 'test-repo', 'test-token')
+        
+        # Get comments with a specific comment_id
+        specific_comment = handler._get_issue_comments(issue_number=1, comment_id=123)
+        
+        # Verify only the specific comment is returned
+        assert specific_comment == ['First comment']
+
+def test_pr_handler_get_converted_issues_with_specific_thread_comment():
+    # Define the specific comment_id to filter
+    specific_comment_id = 123
+
+    # Mock GraphQL response for review threads
+    with patch('requests.get') as mock_get:
+        # Mock the response for PRs
+        mock_prs_response = MagicMock()
+        mock_prs_response.json.return_value = [{
+            'number': 1,
+            'title': 'Test PR',
+            'body': 'Test Body',
+            'head': {'ref': 'test-branch'}
+        }]
+        
+        # Mock the response for PR comments
+        mock_comments_response = MagicMock()
+        mock_comments_response.json.return_value = [
+            {'body': 'First comment', 'id': 123},
+            {'body': 'Second comment', 'id': 124}
+        ]
+        
+        # Mock the response for PR metadata (GraphQL)
+        mock_graphql_response = MagicMock()
+        mock_graphql_response.json.return_value = {
+            'data': {
+                'repository': {
+                    'pullRequest': {
+                        'closingIssuesReferences': {'edges': []},
+                        'reviews': {'nodes': []},
+                        'reviewThreads': {
+                        'edges': [
+                            {
+                                'node': {
+                                    'id': 'review-thread-1',
+                                    'isResolved': False,
+                                    'comments': {
+                                        'nodes': [
+                                            {'fullDatabaseId': 121, 'body': 'Specific review comment', 'path': 'file1.txt'},
+                                            {'fullDatabaseId': 456, 'body': 'Another review comment', 'path': 'file2.txt'}
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Set up the mock to return different responses
+        # We need to return empty responses for subsequent pages
+        mock_empty_response = MagicMock()
+        mock_empty_response.json.return_value = []
+        
+        mock_get.side_effect = [
+            mock_prs_response,  # First call for PRs
+            mock_empty_response,  # Second call for PRs (empty page)
+            mock_comments_response,  # Third call for PR comments
+            mock_empty_response,  # Fourth call for PR comments (empty page)
+        ]
+        
+        # Mock the post request for GraphQL
+        with patch('requests.post') as mock_post:
+            mock_post.return_value = mock_graphql_response
+            
+            # Create an instance of PRHandler
+            handler = PRHandler('test-owner', 'test-repo', 'test-token')
+            
+            # Get converted issues
+            prs = handler.get_converted_issues(comment_id=specific_comment_id)
+            
+            # Verify that we got exactly one PR
+            assert len(prs) == 1
+            
+            # Verify that thread_comments are set correctly
+            assert prs[0].thread_comments == ['First comment']
+            assert prs[0].review_comments == []
+            assert prs[0].review_threads == []
+
+            # Verify other fields are set correctly
+            assert prs[0].number == 1
+            assert prs[0].title == 'Test PR'
+            assert prs[0].body == 'Test Body'
+            assert prs[0].owner == 'test-owner'
+            assert prs[0].repo == 'test-repo'
+            assert prs[0].head_branch == 'test-branch'
+
+
+def test_pr_handler_get_converted_issues_with_specific_review_thread_comment():
+    # Define the specific comment_id to filter
+    specific_comment_id = 123
+
+    # Mock GraphQL response for review threads
+    with patch('requests.get') as mock_get:
+        # Mock the response for PRs
+        mock_prs_response = MagicMock()
+        mock_prs_response.json.return_value = [{
+            'number': 1,
+            'title': 'Test PR',
+            'body': 'Test Body',
+            'head': {'ref': 'test-branch'}
+        }]
+        
+        # Mock the response for PR comments
+        mock_comments_response = MagicMock()
+        mock_comments_response.json.return_value = [
+            {'body': 'First comment', 'id': 120},
+            {'body': 'Second comment', 'id': 124}
+        ]
+        
+        # Mock the response for PR metadata (GraphQL)
+        mock_graphql_response = MagicMock()
+        mock_graphql_response.json.return_value = {
+            'data': {
+                'repository': {
+                    'pullRequest': {
+                        'closingIssuesReferences': {'edges': []},
+                        'reviews': {'nodes': []},
+                        'reviewThreads': {
+                        'edges': [
+                            {
+                                'node': {
+                                    'id': 'review-thread-1',
+                                    'isResolved': False,
+                                    'comments': {
+                                        'nodes': [
+                                            {'fullDatabaseId': specific_comment_id, 'body': 'Specific review comment', 'path': 'file1.txt'},
+                                            {'fullDatabaseId': 456, 'body': 'Another review comment', 'path': 'file2.txt'}
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Set up the mock to return different responses
+        # We need to return empty responses for subsequent pages
+        mock_empty_response = MagicMock()
+        mock_empty_response.json.return_value = []
+        
+        mock_get.side_effect = [
+            mock_prs_response,  # First call for PRs
+            mock_empty_response,  # Second call for PRs (empty page)
+            mock_comments_response,  # Third call for PR comments
+            mock_empty_response,  # Fourth call for PR comments (empty page)
+        ]
+        
+        # Mock the post request for GraphQL
+        with patch('requests.post') as mock_post:
+            mock_post.return_value = mock_graphql_response
+            
+            # Create an instance of PRHandler
+            handler = PRHandler('test-owner', 'test-repo', 'test-token')
+            
+            # Get converted issues
+            prs = handler.get_converted_issues(comment_id=specific_comment_id)
+            
+            # Verify that we got exactly one PR
+            assert len(prs) == 1
+            
+            # Verify that thread_comments are set correctly
+            assert prs[0].thread_comments is None
+            assert prs[0].review_comments == []
+            assert len(prs[0].review_threads) == 1
+            assert isinstance(prs[0].review_threads[0], ReviewThread)
+            assert prs[0].review_threads[0].comment == "Specific review comment\n---\nlatest feedback:\nAnother review comment\n"
+            
+            # Verify other fields are set correctly
+            assert prs[0].number == 1
+            assert prs[0].title == 'Test PR'
+            assert prs[0].body == 'Test Body'
+            assert prs[0].owner == 'test-owner'
+            assert prs[0].repo == 'test-repo'
+            assert prs[0].head_branch == 'test-branch'
