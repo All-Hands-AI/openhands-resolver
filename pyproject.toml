@@ -18,9 +18,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.12"
 openhands-ai = ">=0.12.3,<0.14.0"
-
 pandas = "^2.2.3"
-pytest = "^8.3.3"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
@@ -31,7 +29,8 @@ pre-commit = "*"
 types-toml = "*"
 
 [tool.poetry.group.test.dependencies]
-pytest = "*"
+pytest = ">=8.3.3,<9.0.0"
 pytest-asyncio = "*"
+pytest-mock = ">=3.14.0"
 
 
