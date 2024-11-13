@@ -210,7 +210,7 @@ async def process_issue(
     # Here's how you can run the agent (similar to the `main` function) and get the final task state
     action = MessageAction(
         content=instruction,
-        images_urls=images_urls
+        image_urls=images_urls
     )
     try:
         state: State | None = await run_controller(
