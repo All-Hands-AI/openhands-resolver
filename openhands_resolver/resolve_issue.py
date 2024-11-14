@@ -309,6 +309,7 @@ async def resolve_issue(
     repo_instruction: str | None,
     issue_number: int,
     comment_id: int | None,
+    branch: str = "main",
     reset_logger: bool = False,
 ) -> None:
     """Resolve a single github issue.
@@ -371,6 +372,15 @@ async def resolve_issue(
         ).decode("utf-8")
         if "fatal" in checkout_output:
             raise RuntimeError(f"Failed to clone repository: {checkout_output}")
+
+    # checkout the specified branch
+    if branch != "main":
+        checkout_branch = subprocess.check_output(
+            ["git", "checkout", branch],
+            cwd=repo_dir
+        ).decode("utf-8")
+        if "fatal" in checkout_branch:
+            raise RuntimeError(f"Failed to checkout branch {branch}: {checkout_branch}")
 
     # get the commit id of current repo for reproducibility
     base_commit = (
@@ -543,6 +553,12 @@ def main():
         choices=["issue", "pr"],
         help="Type of issue to resolve, either open issue or pr comments.",
     )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default="main",
+        help="Branch to checkout and use as base (default: main)",
+    )
 
     my_args = parser.parse_args()
 
@@ -601,6 +617,7 @@ def main():
             repo_instruction=repo_instruction,
             issue_number=my_args.issue_number,
             comment_id=my_args.comment_id,
+            branch=my_args.branch,
         )
     )
 

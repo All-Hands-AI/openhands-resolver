@@ -201,6 +201,7 @@ def send_pull_request(
     pr_type: str,
     fork_owner: str | None = None,
     additional_message: str | None = None,
+    target_branch: str | None = None,
 ) -> str:
     if pr_type not in ["branch", "draft", "ready"]:
         raise ValueError(f"Invalid pr_type: {pr_type}")
@@ -212,6 +213,14 @@ def send_pull_request(
     }
     base_url = f"https://api.github.com/repos/{github_issue.owner}/{github_issue.repo}"
 
+    # Use target_branch if specified, otherwise get the default branch
+    if not target_branch:
+        print("Getting default branch...")
+        response = requests.get(f"{base_url}", headers=headers)
+        response.raise_for_status()
+        target_branch = response.json()["default_branch"]
+    print(f"Target branch: {target_branch}")
+
     # Create a new branch with a unique name
     base_branch_name = f"openhands-fix-issue-{github_issue.number}"
     branch_name = base_branch_name
@@ -221,13 +230,6 @@ def send_pull_request(
     while branch_exists(base_url, branch_name, headers):
         attempt += 1
         branch_name = f"{base_branch_name}-try{attempt}"
-
-    # Get the default branch
-    print("Getting default branch...")
-    response = requests.get(f"{base_url}", headers=headers)
-    response.raise_for_status()
-    default_branch = response.json()["default_branch"]
-    print(f"Default branch: {default_branch}")
 
     # Create and checkout the new branch
     print("Creating new branch...")
@@ -268,13 +270,13 @@ def send_pull_request(
     # If we are not sending a PR, we can finish early and return the
     # URL for the user to open a PR manually
     if pr_type == "branch":
-        url = f"https://github.com/{push_owner}/{github_issue.repo}/compare/{branch_name}?expand=1"
+        url = f"https://github.com/{push_owner}/{github_issue.repo}/compare/{target_branch}...{branch_name}?expand=1"
     else:
         data = {
             "title": pr_title,  # No need to escape title for GitHub API
             "body": pr_body,
             "head": branch_name,
-            "base": default_branch,
+            "base": target_branch,
             "draft": pr_type == "draft",
         }
         response = requests.post(f"{base_url}/pulls", headers=headers, json=data)
@@ -421,6 +423,7 @@ def process_single_issue(
     llm_config: LLMConfig,
     fork_owner: str | None,
     send_on_failure: bool,
+    target_branch: str | None = None,
 ) -> None:
     if not resolver_output.success and not send_on_failure:
         print(
@@ -473,6 +476,7 @@ def process_single_issue(
             llm_config=llm_config,
             fork_owner=fork_owner,
             additional_message=resolver_output.success_explanation,
+            target_branch=target_branch,
         )
 
 
@@ -497,6 +501,7 @@ def process_all_successful_issues(
                 llm_config,
                 fork_owner,
                 False,
+                None,
             )
 
 
@@ -562,6 +567,12 @@ def main():
         default=None,
         help="Base URL for the LLM model.",
     )
+    parser.add_argument(
+        "--target-branch",
+        type=str,
+        default=None,
+        help="Target branch to create the pull request against (if not specified, uses repo's default branch)",
+    )
     my_args = parser.parse_args()
 
     github_token = (
@@ -610,6 +621,7 @@ def main():
             llm_config,
             my_args.fork_owner,
             my_args.send_on_failure,
+            my_args.target_branch,
         )
 
 if __name__ == "__main__":
