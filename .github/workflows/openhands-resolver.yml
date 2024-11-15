@@ -138,7 +138,7 @@ jobs:
               issue_number: ${{ env.ISSUE_NUMBER }},
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `OpenHands started fixing the ${issueType}! You can monitor the progress [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`
+              body: `OpenHands started fixing the ${issueType}! You can monitor the progress [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).\n\n> ALERT: message from your friendly neighborhood code agent -> this is an old version of the OpenHands github resolver. It has been moved to https://github.com/All-Hands-AI/OpenHands/tree/main/openhands/resolver`
             });
 
       - name: Install dependencies
@@ -244,27 +244,27 @@ jobs:
                 issue_number: issueNumber,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `The workflow to fix this issue encountered an error. Openhands failed to create any code changes.`
+                body: `The workflow to fix this issue encountered an error. Openhands failed to create any code changes.\n\n> ALERT: message from your friendly neighborhood code agent -> this is an old version of the OpenHands github resolver. It has been moved to https://github.com/All-Hands-AI/OpenHands/tree/main/openhands/resolver`
               });
             } else if (success && prNumber) {
               github.rest.issues.createComment({
                 issue_number: issueNumber,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `A potential fix has been generated and a draft PR #${prNumber} has been created. Please review the changes.`
+                body: `A potential fix has been generated and a draft PR #${prNumber} has been created. Please review the changes.\n\n> ALERT: message from your friendly neighborhood code agent -> this is an old version of the OpenHands github resolver. It has been moved to https://github.com/All-Hands-AI/OpenHands/tree/main/openhands/resolver`
               });
             } else if (!success && branchName) {
               github.rest.issues.createComment({
                 issue_number: issueNumber,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `An attempt was made to automatically fix this issue, but it was unsuccessful. A branch named '${branchName}' has been created with the attempted changes. You can view the branch [here](https://github.com/${context.repo.owner}/${context.repo.repo}/tree/${branchName}). Manual intervention may be required.`
+                body: `An attempt was made to automatically fix this issue, but it was unsuccessful. A branch named '${branchName}' has been created with the attempted changes. You can view the branch [here](https://github.com/${context.repo.owner}/${context.repo.repo}/tree/${branchName}). Manual intervention may be required.\n\n> ALERT: message from your friendly neighborhood code agent -> this is an old version of the OpenHands github resolver. It has been moved to https://github.com/All-Hands-AI/OpenHands/tree/main/openhands/resolver`
               });
             } else {
               github.rest.issues.createComment({
                 issue_number: issueNumber,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `The workflow to fix this issue encountered an error. Please check the workflow logs for more information.`
+                body: `The workflow to fix this issue encountered an error. Please check the workflow logs for more information.\n\n> ALERT: message from your friendly neighborhood code agent -> this is an old version of the OpenHands github resolver. It has been moved to https://github.com/All-Hands-AI/OpenHands/tree/main/openhands/resolver`
               });
             }
