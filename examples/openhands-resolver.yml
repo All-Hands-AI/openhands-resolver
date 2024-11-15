@@ -1,5 +1,7 @@
 name: Resolve Issue with OpenHands
 
+# ALERT: message from your friendly neighborhood code agent -> this is an old version of the OpenHands github resolver. It has been moved to https://github.com/All-Hands-AI/OpenHands/tree/main/openhands/resolver
+
 on:
   issues:
     types: [labeled]
