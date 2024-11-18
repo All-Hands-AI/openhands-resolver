@@ -17,7 +17,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.12"
-openhands-ai = ">=0.13.1,<0.14.0"
+openhands-ai = ">=0.13.1,<0.15.0"
 
 pandas = "^2.2.3"
 
